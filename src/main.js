@@ -1,5 +1,5 @@
-import { applyProgressionFlags, loadState, saveState } from "./state.js";
-import { fs, files, getDynamicFile as getDynamicFileBase } from "./content.js";
+import { applyProgressionFlags, getActiveObjectives, loadState, saveState } from "./state.js";
+import { fs, files, getDirectoryEntries, getDynamicFile as getDynamicFileBase, isContentVisible } from "./content.js";
 import { createWindowManager } from "./windowManager.js";
 import { runBoot } from "./boot.js";
 import {
@@ -55,7 +55,43 @@ evaluateBehaviorReactions({ state, fs, saveState: persist });
 
 const { makeWindow } = createWindowManager({ desktopRoot, taskList });
 
-const appContext = { makeWindow, fs, files, state, saveState: save, getDynamicFile };
+const appContext = {
+  makeWindow,
+  fs,
+  files,
+  state,
+  saveState: save,
+  getDynamicFile,
+  getDirectoryEntries,
+  isContentVisible
+};
+
+
+function getChapterLabel(chapter) {
+  if (chapter === 1) return "Act I // Orientation";
+  if (chapter === 2) return "Act II // Retrieval";
+  return "Act III // Disclosure";
+}
+
+function mountObjectivePanel() {
+  const panel = document.createElement("aside");
+  panel.className = "objective-panel";
+  panel.id = "objectivePanel";
+  desktopRoot.appendChild(panel);
+
+  const render = () => {
+    const active = getActiveObjectives(state);
+    panel.innerHTML = `
+      <div class="objective-title">${getChapterLabel(state.chapter)}</div>
+      <div class="objective-subtitle">Active Objectives</div>
+      <ul>${active.map((objective) => `<li>${objective.label}</li>`).join("") || "<li>All objectives complete.</li>"}</ul>
+    `;
+  };
+
+  render();
+  return render;
+}
+
 const apps = [
   { name: "File Explorer", icon: "📁", open: () => openExplorer(appContext) },
   { name: "Terminal", icon: "⌨", open: () => openTerminal(appContext) },
@@ -66,6 +102,7 @@ const apps = [
 ];
 
 function initDesktop() {
+  const renderObjectivePanel = mountObjectivePanel();
   for (const app of apps) {
     const icon = document.createElement("div");
     icon.className = "icon";
@@ -109,6 +146,7 @@ function initDesktop() {
     const glitch = getAppGlitchStyle(state);
     desktopRoot.style.filter = glitch.filter;
     desktopRoot.style.transform = glitch.transform;
+    renderObjectivePanel();
   }, 500);
 }
 
@@ -119,6 +157,14 @@ loginBtn.onclick = () => {
   initDesktop();
   if (state.bootCount > 1) openExplorer(appContext);
   if (state.bootCount > 2) setTimeout(() => openTerminal(appContext), 500);
+
+  const startupText = [
+    "Act I initialized: verify archive pathway.",
+    "Act II initialized: recover and decode withheld artifacts.",
+    "Act III initialized: complete disclosure sequence."
+  ][Math.min(state.chapter - 1, 2)];
+
+  setTimeout(() => alert(startupText), 120);
   save();
 };
 

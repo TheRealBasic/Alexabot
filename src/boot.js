@@ -49,7 +49,8 @@ export async function runBoot({ state, bootText, bootEl, splash, login, lastSess
   await sleep(1300);
   splash.style.display = "none";
   login.style.display = "flex";
+  const chapterStatus = ["Act I // Orientation", "Act II // Retrieval", "Act III // Disclosure"][Math.min(state.chapter - 1, 2)];
   lastSession.textContent = state.bootCount > 1
-    ? `Last recovered boot: ${new Date(Date.now() - 3600_000).toLocaleString()} (incomplete shutdown)`
-    : "No complete shutdown record found.";
+    ? `Last recovered boot: ${new Date(Date.now() - 3600_000).toLocaleString()} (incomplete shutdown) — ${chapterStatus}`
+    : `No complete shutdown record found. ${chapterStatus}`;
 }
