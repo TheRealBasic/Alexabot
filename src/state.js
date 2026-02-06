@@ -17,6 +17,11 @@ export const defaultState = {
     trayWarning: false,
     syntheticCorrespondence: false,
     appGlitch: false
+  },
+  cinematicSeen: {
+    archiveUnlock: false,
+    maintenance311: false,
+    finalReveal: false
   }
 };
 
@@ -28,7 +33,8 @@ export function loadState() {
         ...defaultState,
         ...parsed,
         unlocked: { ...defaultState.unlocked, ...(parsed.unlocked || {}) },
-        reactionFlags: { ...defaultState.reactionFlags, ...(parsed.reactionFlags || {}) }
+        reactionFlags: { ...defaultState.reactionFlags, ...(parsed.reactionFlags || {}) },
+        cinematicSeen: { ...defaultState.cinematicSeen, ...(parsed.cinematicSeen || {}) }
       }
       : { ...defaultState };
   } catch {
