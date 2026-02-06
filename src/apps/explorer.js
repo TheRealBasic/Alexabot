@@ -1,4 +1,6 @@
-export function openExplorer({ makeWindow, fs, getDynamicFile, state, saveState }) {
+import { completeObjective } from "../state.js";
+
+export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntries, state, saveState }) {
   makeWindow("explorer", "File Explorer", (content) => {
     content.innerHTML = `<div class="explorer-layout"><div class="tree" id="dirTree"></div><div class="file-view"><div id="pathLabel" class="muted"></div><div id="fileList" style="margin-top:8px"></div><pre id="preview" style="white-space:pre-wrap; border-top:1px solid #2b4968; margin-top:8px; padding-top:8px;"></pre></div></div>`;
     const tree = content.querySelector("#dirTree");
@@ -22,7 +24,7 @@ export function openExplorer({ makeWindow, fs, getDynamicFile, state, saveState 
       pathLabel.textContent = current;
       fileList.innerHTML = "";
       preview.textContent = "";
-      const entries = fs[current] || [];
+      const entries = getDirectoryEntries(current, state);
 
       for (const entry of entries) {
         if (entry.startsWith(".") && !state.unlocked.archive) continue;
@@ -49,6 +51,9 @@ export function openExplorer({ makeWindow, fs, getDynamicFile, state, saveState 
           }
 
           preview.textContent = getDynamicFile(full) || "[empty]";
+          if (full === "/logs/audit_redacted.log" && state.unlocked.redactedLog) {
+            completeObjective(state, "access_redacted_audit");
+          }
           state.viewed[full] = (state.viewed[full] || 0) + 1;
           saveState();
         };

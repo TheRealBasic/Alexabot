@@ -1,4 +1,6 @@
-export function openTerminal({ makeWindow, fs, files, getDynamicFile, state, saveState }) {
+import { completeObjective } from "../state.js";
+
+export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirectoryEntries, isContentVisible, state, saveState }) {
   makeWindow("terminal", "Terminal", (content) => {
     content.classList.add("terminal");
     content.innerHTML = `<div class="terminal-output" id="termOut"></div><div class="terminal-input"><span>operator@eidolon:$</span><input id="termInput" autocomplete="off" /></div>`;
@@ -27,8 +29,8 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, state, sav
       else if (cmd === "pwd") print(cwd);
       else if (cmd === "ls") {
         const p = resolve(args[0]);
-        const entries = fs[p];
-        if (!entries) print("ls: path not found");
+        const entries = getDirectoryEntries(p, state);
+        if (!fs[p]) print("ls: path not found");
         else print(entries.filter((x) => state.unlocked.archive || !x.startsWith(".")).join("  "));
       } else if (cmd === "cd") {
         const p = resolve(args[0]);
@@ -36,12 +38,17 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, state, sav
         else print("cd: no such directory");
       } else if (cmd === "cat") {
         const p = resolve(args[0]);
-        if (p === "/logs/audit_redacted.log" && !state.unlocked.redactedLog) print("cat: permission denied");
-        else print(getDynamicFile(p) || "cat: file not found");
+        if (!isContentVisible(p, state)) print("cat: file not found");
+        else if (p === "/logs/audit_redacted.log" && !state.unlocked.redactedLog) print("cat: permission denied");
+        else {
+          print(getDynamicFile(p) || "cat: file not found");
+          if (p === "/logs/audit_redacted.log" && state.unlocked.redactedLog) completeObjective(state, "access_redacted_audit");
+        }
       } else if (cmd === "clear") out.textContent = "";
       else if (cmd === "unlock" && args[0] === "archive") {
         if ((state.viewed["/home/operator/docs/continuity_overview.txt"] || 0) > 0) {
           state.unlocked.archive = true;
+          completeObjective(state, "unlock_archive");
           print("archive channel exposed");
         } else print("unlock: required context missing");
       } else if (cmd === "set-time") {
@@ -55,6 +62,7 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, state, sav
             state.driftMinutes = Math.round((simulated - now) / 60000);
             if (h === 3 && m === 11) {
               state.unlocked.redactedLog = true;
+              completeObjective(state, "set_time_0311");
               print("maintenance window active");
             }
             print("clock adjusted");
@@ -64,6 +72,7 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, state, sav
         const clock = new Date(Date.now() + state.driftMinutes * 60000);
         if (clock.getHours() === 3 && clock.getMinutes() >= 11 && clock.getMinutes() <= 13) {
           state.recoveredFiles = true;
+          completeObjective(state, "recover_manifest");
           if (!fs["/home/operator/docs"].includes("postmortem.txt")) fs["/home/operator/docs"].push("postmortem.txt");
           if (!fs["/home/operator/mail"].includes("draft_9.eml")) fs["/home/operator/mail"].push("draft_9.eml");
           print("2 files restored from deleted manifest.");
@@ -72,6 +81,7 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, state, sav
         const p = resolve(args[0]);
         if (p === "/media/cam2_20030418.dat") {
           state.unlocked.mediaReveal = true;
+          completeObjective(state, "decode_cam2");
           print("extracting printable strings...");
           print(getDynamicFile(p));
         } else print("no printable strings found");

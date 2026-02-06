@@ -3,13 +3,13 @@ export const fs = {
   "/home": ["operator", "guest"],
   "/home/operator": ["desktop", "docs", "mail", "drafts", "notes.txt"],
   "/home/operator/desktop": ["todo.txt", "family_photo.jpg", "readme.url"],
-  "/home/operator/docs": ["continuity_overview.txt", "meeting_minutes_2003-04-17.txt", "statement_draft.txt"],
+  "/home/operator/docs": ["continuity_overview.txt", "meeting_minutes_2003-04-17.txt", "statement_draft.txt", "act2_transition.txt", "act3_transition.txt"],
   "/home/operator/mail": ["inbox_03.mbox", "unsent_7.eml"],
   "/home/operator/drafts": ["scratch.txt", "do_not_archive.txt"],
   "/home/guest": ["note.txt"],
   "/system": ["boot.cfg", "users.db", "help", "drivers", "time.dat"],
   "/system/help": ["shell_help.txt", "recovery_help.txt", "known_issues.txt"],
-  "/logs": ["kernel.log", "session.log", "incident.log", "audit_redacted.log"],
+  "/logs": ["kernel.log", "session.log", "incident.log", "audit_redacted.log", "final_directive.log"],
   "/media": ["lullaby.wav", "hallway_capture.avi", "cam2_20030418.dat"],
   "/.cache": ["profile.snapshot", "shadow.idx", "deleted_manifest.tmp"]
 };
@@ -22,6 +22,8 @@ export const files = {
   "/home/operator/docs/continuity_overview.txt": "Continuity Mapping v3\nThe system captures interaction signatures to preserve user-state between outages.\nDo not frame this as identity replication in client documentation.",
   "/home/operator/docs/meeting_minutes_2003-04-17.txt": "Minutes: Ethics review\n- Stop using the word \"replacement\" in reports\n- Subject mismatch now above 12%\n- Build 3.1.4 classified as internal only\n- [line removed by request of A.R.]",
   "/home/operator/docs/statement_draft.txt": "If anyone finds this: I never approved deployment beyond Lab B.\nIf this file is timestamped after April 19, it's not me.",
+  "/home/operator/docs/act2_transition.txt": "ACT II // RETRIEVAL\nThe archive is no longer theoretical. Recover what was deleted before the system rewrites motive.",
+  "/home/operator/docs/act3_transition.txt": "ACT III // ACCOUNTING\nYou can now audit what the observer kept. Confirmation may not be survivable.",
   "/home/operator/mail/inbox_03.mbox": "From: m.reid@eidolon.local\nSubject: Re: shutdown policy\nYou need to pull power at wall. UI shutdown triggers archival cycle.",
   "/home/operator/mail/unsent_7.eml": "To: [empty]\nSubject: i am still logged in\nBody: It keeps correcting my spelling to older patterns.",
   "/home/operator/drafts/scratch.txt": "i keep writing this and deleting it\ni am not alone in here\nit finishes my sentences",
@@ -38,6 +40,7 @@ export const files = {
   "/logs/session.log": "2003-04-18 22:17 operator login\n2003-04-19 03:11 operator active\n2003-04-19 03:11 operator active\n2003-04-19 03:11 operator active",
   "/logs/incident.log": "INC-14: Subject insisted system was editing documents autonomously.\nINC-14 status: unresolved\nINC-19: Physical room search negative. Two keyboards recorded.",
   "/logs/audit_redacted.log": "ACCESS: denied. clearance mismatch.",
+  "/logs/final_directive.log": "[04:20:12] continuity target met\n[04:20:13] outstanding anomaly: operator identity unresolved\n[04:20:14] policy update: retain narrative, discard witness",
   "/media/lullaby.wav": "audio stream [damaged]\nSpectral note: phrase present under noise floor.",
   "/media/hallway_capture.avi": "video stream [codec missing]\nFrame 228 note: door opens before handle turns.",
   "/media/cam2_20030418.dat": "unrecognized binary blob",
@@ -46,7 +49,28 @@ export const files = {
   "/.cache/deleted_manifest.tmp": "deleted:/home/operator/docs/postmortem.txt\ndeleted:/home/operator/mail/draft_9.eml"
 };
 
+
+
+const chapterMilestones = {
+  "/home/operator/docs/act2_transition.txt": 2,
+  "/home/operator/docs/act3_transition.txt": 3,
+  "/logs/final_directive.log": 3
+};
+
+export function isContentVisible(path, state) {
+  const requiredChapter = chapterMilestones[path] || 1;
+  return state.chapter >= requiredChapter;
+}
+
+export function getDirectoryEntries(path, state) {
+  const entries = fs[path] || [];
+  return entries.filter((entry) => {
+    const fullPath = path === "/" ? `/${entry}` : `${path}/${entry}`;
+    return isContentVisible(fullPath, state);
+  });
+}
 export function getDynamicFile(path, state) {
+  if (!isContentVisible(path, state)) return undefined;
   if (path === "/logs/audit_redacted.log" && state.unlocked.redactedLog) {
     return "[04:02:11] profile divergence detected\n[04:02:39] corrective prompt ignored\n[04:03:01] fallback: narrative stabilization\n[04:03:02] user insists: \"I am not operator\"\n[04:03:04] system response: \"acknowledged typo\"";
   }
