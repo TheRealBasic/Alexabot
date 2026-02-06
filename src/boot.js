@@ -1,3 +1,4 @@
+import { getReactiveBootloaderLines } from "./progression/reactions.js";
 export const bootVariants = [
   ["EIDOLON BIOS v0.93", "CPU: MARS K7 @ 1.1GHz", "Memory Test: 65536K OK", "IDE0: QUANTA_QD320 [Warning: delayed spin-up]", "IDE1: NONE", "PS/2 Keyboard...OK", "RTC Drift: +47m", "Boot Flag: RECOVERY_IMAGE"],
   ["EIDOLON BIOS v0.93", "CPU: MARS K7 @ 1.1GHz", "Memory Test: 65536K ... 65408K", "Memory Map Conflict @ 0x000F3A20", "IDE0: QUANTA_QD320", "SMART STATUS: UNKNOWN", "Last Shutdown: UNEXPECTED", "Boot Flag: RESUME_CONTINUITY"],
@@ -34,7 +35,9 @@ export async function runBoot({ state, bootText, bootEl, splash, login, lastSess
 
   writeBootLine("----------------------------------------");
 
-  for (const line of bootloaderLines) {
+  const lines = getReactiveBootloaderLines(bootloaderLines, state);
+
+  for (const line of lines) {
     const corrupt = Math.random() < 0.11;
     writeBootLine(corrupt ? line.replace(/[aeiou]/gi, "?") : line);
     await sleep(130 + Math.random() * 120);

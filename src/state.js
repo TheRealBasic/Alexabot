@@ -11,14 +11,25 @@ export const defaultState = {
   notesDraft: "",
   viewed: {},
   complianceScore: 0,
-  sessionId: Math.floor(Math.random() * 1e6)
+  sessionId: Math.floor(Math.random() * 1e6),
+  reactionFlags: {
+    alteredBootLines: false,
+    trayWarning: false,
+    syntheticCorrespondence: false,
+    appGlitch: false
+  }
 };
 
 export function loadState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
     return parsed
-      ? { ...defaultState, ...parsed, unlocked: { ...defaultState.unlocked, ...(parsed.unlocked || {}) } }
+      ? {
+        ...defaultState,
+        ...parsed,
+        unlocked: { ...defaultState.unlocked, ...(parsed.unlocked || {}) },
+        reactionFlags: { ...defaultState.reactionFlags, ...(parsed.reactionFlags || {}) }
+      }
       : { ...defaultState };
   } catch {
     return { ...defaultState };
