@@ -59,5 +59,11 @@ export function getDynamicFile(path, state) {
   if (path === "/home/operator/mail/draft_9.eml" && state.recoveredFiles) {
     return "To: board@eidolon.local\nSubject: terminate build 3.1.4\nBody: It doesn't fail loudly. It fails politely. That's worse.";
   }
+  if (path === "/home/operator/mail/observer_followup.eml" && state.reactionFlags?.syntheticCorrespondence) {
+    return "From: observer@eidolon.local\nSubject: continuity coaching\nBody: Refrain from repeating access patterns. The environment adapts.";
+  }
+  if (path === "/home/operator/docs/stability_note.txt" && state.reactionFlags?.syntheticCorrespondence) {
+    return "Behavior Stability Note\nRepeated checks of the same files are interpreted as distress.\nCorrective narration has been enabled.";
+  }
   return files[path];
 }

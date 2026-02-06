@@ -2,6 +2,11 @@ import { applyProgressionFlags, loadState, saveState } from "./state.js";
 import { fs, files, getDynamicFile as getDynamicFileBase } from "./content.js";
 import { createWindowManager } from "./windowManager.js";
 import { runBoot } from "./boot.js";
+import {
+  evaluateBehaviorReactions,
+  getAppGlitchStyle,
+  getTrayWarningText
+} from "./progression/reactions.js";
 import { openExplorer } from "./apps/explorer.js";
 import { openTerminal } from "./apps/terminal.js";
 import { openNotes } from "./apps/notes.js";
@@ -10,8 +15,14 @@ import { openSettings } from "./apps/settings.js";
 import { openHelp } from "./apps/help.js";
 
 const state = applyProgressionFlags(loadState());
-const save = () => saveState(state);
+const persist = () => saveState(state);
+const save = () => {
+  evaluateBehaviorReactions({ state, fs, saveState: persist });
+  persist();
+};
 const getDynamicFile = (path) => getDynamicFileBase(path, state);
+
+evaluateBehaviorReactions({ state, fs, saveState: persist });
 
 const bootText = document.getElementById("bootText");
 const bootEl = document.getElementById("boot");
@@ -78,7 +89,11 @@ function initDesktop() {
   setInterval(() => {
     const now = new Date(Date.now() + state.driftMinutes * 60_000);
     trayClock.textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    if (state.complianceScore < -2) trayState.textContent = "SYS: OBSERVING";
+    trayState.textContent = getTrayWarningText(state);
+
+    const glitch = getAppGlitchStyle(state);
+    desktopRoot.style.filter = glitch.filter;
+    desktopRoot.style.transform = glitch.transform;
   }, 500);
 }
 
