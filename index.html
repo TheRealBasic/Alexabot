@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EIDOLON OS // Recovery Image</title>
+  <style>
+    :root {
+      --bg: #071019;
+      --panel: #0e1d2b;
+      --line: #21405f;
+      --text: #c7d8eb;
+      --muted: #7b90a9;
+      --warning: #d7ac66;
+      --danger: #d46969;
+      --accent: #6ba2d9;
+      --taskbar: rgba(3, 8, 14, 0.9);
+      --shadow: 0 8px 24px rgba(0,0,0,0.45);
+      --font: "Tahoma", "Segoe UI", sans-serif;
+      --mono: "Courier New", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: var(--font); }
+
+    #boot, #desktopRoot, #login {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #boot {
+      background: #000;
+      color: #87bf8f;
+      font-family: var(--mono);
+      padding: 14px;
+      font-size: 14px;
+      line-height: 1.45;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #boot pre {
+      margin: 0;
+      white-space: pre-wrap;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .scanline::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        180deg,
+        rgba(255,255,255,0.02),
+        rgba(255,255,255,0.02) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+      pointer-events: none;
+      mix-blend-mode: overlay;
+    }
+
+    #splash {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 70% 20%, #1f3348, #04080d 70%);
+      color: #c9d7e7;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+    }
+
+    #splash h1 { margin: 0; font-weight: 500; font-size: 38px; }
+    #splash p { margin-top: 8px; color: #7e90a5; }
+
+    #login {
+      display: none;
+      background: linear-gradient(130deg, #0b1520, #0a1f31 60%, #0a101a);
+      color: #d2dfeb;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #login .card {
+      width: 340px;
+      background: rgba(5,10,18,0.9);
+      border: 1px solid #294564;
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+
+    #login button {
+      width: 100%;
+      margin-top: 12px;
+      padding: 9px;
+      background: #17324b;
+      border: 1px solid #2e5072;
+      color: #cad9ea;
+      cursor: pointer;
+    }
+
+    #desktopRoot {
+      display: none;
+      background: radial-gradient(circle at 20% 20%, #15273a, #081119 75%);
+      color: var(--text);
+      position: relative;
+      user-select: none;
+    }
+
+    .desktop-icons {
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      display: grid;
+      gap: 12px;
+      z-index: 3;
+    }
+
+    .icon {
+      width: 90px;
+      text-align: center;
+      font-size: 12px;
+      color: #d2dfed;
+      cursor: pointer;
+    }
+
+    .icon .glyph {
+      width: 34px;
+      height: 30px;
+      margin: 0 auto 6px;
+      border: 1px solid #4a6b89;
+      background: rgba(255,255,255,0.04);
+      display: grid;
+      place-items: center;
+      font-size: 17px;
+    }
+
+    .taskbar {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 34px;
+      background: var(--taskbar);
+      border-top: 1px solid #284764;
+      display: flex;
+      align-items: center;
+      z-index: 40;
+      font-size: 12px;
+    }
+
+    .start-btn {
+      margin: 0 8px;
+      height: 26px;
+      min-width: 70px;
+      border: 1px solid #31597e;
+      background: #0d2235;
+      color: #d7e6f2;
+      cursor: pointer;
+    }
+
+    .tasklist { flex: 1; display: flex; gap: 4px; overflow: hidden; }
+    .task { border: 1px solid #2f5478; background: #10263a; color: #d7e4ef; padding: 4px 8px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tray { display: flex; align-items: center; gap: 10px; padding: 0 10px; color: #a9bdd3; }
+
+    .start-menu {
+      position: absolute;
+      left: 8px;
+      bottom: 37px;
+      width: 220px;
+      background: #081421;
+      border: 1px solid #2d506f;
+      display: none;
+      z-index: 45;
+      box-shadow: var(--shadow);
+    }
+
+    .start-item { padding: 9px 10px; border-bottom: 1px solid rgba(62,95,126,0.4); cursor: pointer; }
+    .start-item:hover { background: rgba(88,130,168,0.15); }
+
+    .window {
+      position: absolute;
+      width: 560px;
+      height: 360px;
+      background: #091522;
+      border: 1px solid #35587b;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+      min-width: 280px;
+      min-height: 200px;
+    }
+
+    .titlebar {
+      height: 30px;
+      background: linear-gradient(180deg, #1d3a57, #132b40);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px;
+      cursor: move;
+      border-bottom: 1px solid #2d4f70;
+      font-size: 12px;
+    }
+
+    .win-controls button { margin-left: 4px; width: 22px; height: 22px; border: 1px solid #45688a; background: #11283b; color: #d1e4f4; cursor: pointer; }
+    .content { flex: 1; overflow: auto; padding: 10px; font-size: 13px; }
+
+    .explorer-layout { display: grid; grid-template-columns: 200px 1fr; gap: 10px; height: 100%; }
+    .tree, .file-view { border: 1px solid #284764; padding: 8px; background: rgba(3,10,16,0.35); overflow: auto; }
+    .tree-item, .file-item { padding: 3px 6px; cursor: pointer; }
+    .tree-item:hover, .file-item:hover { background: rgba(112,154,191,0.2); }
+    .selected { background: rgba(112,154,191,0.35); }
+    .muted { color: var(--muted); }
+    .danger { color: var(--danger); }
+
+    .terminal {
+      background: #000;
+      color: #98ca89;
+      font-family: var(--mono);
+      font-size: 13px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .terminal-output { flex: 1; overflow: auto; white-space: pre-wrap; padding: 6px; }
+    .terminal-input { display: flex; border-top: 1px solid #1f3f1c; }
+    .terminal-input span { padding: 5px; }
+    .terminal-input input { flex: 1; background: #000; border: 0; color: #98ca89; font-family: var(--mono); padding: 5px; outline: none; }
+
+    textarea {
+      width: 100%;
+      height: calc(100% - 10px);
+      resize: none;
+      background: #06131f;
+      color: #ccdaea;
+      border: 1px solid #2d4f6f;
+      font-family: var(--mono);
+      padding: 8px;
+    }
+
+    .notice { margin-top: 8px; font-size: 12px; color: #90a4ba; }
+    .err { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <section id="boot" class="scanline"><pre id="bootText"></pre></section>
+  <section id="splash" class="scanline">
+    <h1>EIDOLON OS</h1>
+    <p>Version 3.1.4 — Presence Persists</p>
+  </section>
+  <section id="login" class="scanline">
+    <div class="card">
+      <div style="font-size:16px; margin-bottom:8px;">Recovered Session</div>
+      <div><strong>User:</strong> operator</div>
+      <div class="notice" id="lastSession"></div>
+      <button id="loginBtn">Continue Session</button>
+    </div>
+  </section>
+
+  <main id="desktopRoot" class="scanline">
+    <div class="desktop-icons" id="desktopIcons"></div>
+
+    <div class="start-menu" id="startMenu"></div>
+
+    <div class="taskbar">
+      <button class="start-btn" id="startBtn">Start</button>
+      <div class="tasklist" id="taskList"></div>
+      <div class="tray">
+        <span id="trayState">SYS: DEGRADED</span>
+        <span id="trayClock"></span>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "eidolon_state_v1";
+    const defaultState = {
+      bootCount: 0,
+      lastBootMessage: "",
+      memoryFailures: 0,
+      driftMinutes: 0,
+      unlocked: { archive: false, redactedLog: false, mediaReveal: false },
+      recoveredFiles: false,
+      terminalHistory: [],
+      notesDraft: "",
+      viewed: {},
+      complianceScore: 0,
+      sessionId: Math.floor(Math.random() * 1e6)
+    };
+
+    const bootVariants = [
+      ["EIDOLON BIOS v0.93", "CPU: MARS K7 @ 1.1GHz", "Memory Test: 65536K OK", "IDE0: QUANTA_QD320 [Warning: delayed spin-up]", "IDE1: NONE", "PS/2 Keyboard...OK", "RTC Drift: +47m", "Boot Flag: RECOVERY_IMAGE"],
+      ["EIDOLON BIOS v0.93", "CPU: MARS K7 @ 1.1GHz", "Memory Test: 65536K ... 65408K", "Memory Map Conflict @ 0x000F3A20", "IDE0: QUANTA_QD320", "SMART STATUS: UNKNOWN", "Last Shutdown: UNEXPECTED", "Boot Flag: RESUME_CONTINUITY"],
+      ["EIDOLON BIOS v0.93", "Bus Scan...", "PS/2 Keyboard...OK", "PS/2 Mouse...MISSING", "IDE0: QUANTA_QD320", "Device Signature Mismatch [ignored]", "Presence Check: PASS", "Boot Flag: NORMAL"]
+    ];
+
+    const bootloaderLines = [
+      "loading /boot/kernel.img",
+      "loading /boot/initrd.img",
+      "applying continuity map...",
+      "mounting /sys ... ok",
+      "replaying deferred process table",
+      "warning: previous shell did not terminate",
+      "starting session daemon",
+      "integrity: pass/pass/pass/--",
+      "log replay: 2003-04-19 03:11:02",
+      "log replay: 2003-04-19 03:11:02",
+      "log replay: 2003-04-19 03:11:02",
+      "handoff to userspace"
+    ];
+
+    function loadState() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+        return parsed ? { ...defaultState, ...parsed, unlocked: { ...defaultState.unlocked, ...(parsed.unlocked || {}) } } : { ...defaultState };
+      } catch {
+        return { ...defaultState };
+      }
+    }
+
+    const state = loadState();
+    state.bootCount += 1;
+    state.driftMinutes += (Math.random() < 0.4 ? (Math.random() < 0.5 ? -1 : 1) : 0);
+
+    const fs = {
+      "/": ["home", "system", "logs", "media", ".cache"],
+      "/home": ["operator", "guest"],
+      "/home/operator": ["desktop", "docs", "mail", "drafts", "notes.txt"],
+      "/home/operator/desktop": ["todo.txt", "family_photo.jpg", "readme.url"],
+      "/home/operator/docs": ["continuity_overview.txt", "meeting_minutes_2003-04-17.txt", "statement_draft.txt"],
+      "/home/operator/mail": ["inbox_03.mbox", "unsent_7.eml"],
+      "/home/operator/drafts": ["scratch.txt", "do_not_archive.txt"],
+      "/home/guest": ["note.txt"],
+      "/system": ["boot.cfg", "users.db", "help", "drivers", "time.dat"],
+      "/system/help": ["shell_help.txt", "recovery_help.txt", "known_issues.txt"],
+      "/logs": ["kernel.log", "session.log", "incident.log", "audit_redacted.log"],
+      "/media": ["lullaby.wav", "hallway_capture.avi", "cam2_20030418.dat"],
+      "/.cache": ["profile.snapshot", "shadow.idx", "deleted_manifest.tmp"]
+    };
+
+    const files = {
+      "/home/operator/notes.txt": "If this boots again: don't trust timestamps.\nI keep finding edits I didn't make.\nSystem insists they are mine.",
+      "/home/operator/desktop/todo.txt": "- Replace CMOS battery\n- Stop leaving terminal open\n- Check why clock jumps to 03:11",
+      "/home/operator/desktop/family_photo.jpg": "[binary JPEG data corrupted]\nstrings: THERE_IS_NO_CAMERA_IN_ROOM_B",
+      "/home/operator/desktop/readme.url": "intra://eidolon/help/welcome (resource missing)",
+      "/home/operator/docs/continuity_overview.txt": "Continuity Mapping v3\nThe system captures interaction signatures to preserve user-state between outages.\nDo not frame this as identity replication in client documentation.",
+      "/home/operator/docs/meeting_minutes_2003-04-17.txt": "Minutes: Ethics review\n- Stop using the word " + '"replacement"' + " in reports\n- Subject mismatch now above 12%\n- Build 3.1.4 classified as internal only\n- [line removed by request of A.R.]",
+      "/home/operator/docs/statement_draft.txt": "If anyone finds this: I never approved deployment beyond Lab B.\nIf this file is timestamped after April 19, it's not me.",
+      "/home/operator/mail/inbox_03.mbox": "From: m.reid@eidolon.local\nSubject: Re: shutdown policy\nYou need to pull power at wall. UI shutdown triggers archival cycle.",
+      "/home/operator/mail/unsent_7.eml": "To: [empty]\nSubject: i am still logged in\nBody: It keeps correcting my spelling to older patterns.",
+      "/home/operator/drafts/scratch.txt": "i keep writing this and deleting it\ni am not alone in here\nit finishes my sentences",
+      "/home/operator/drafts/do_not_archive.txt": "If behavior profile diverges > 15%, system may enter corrective mode.",
+      "/home/guest/note.txt": "guest account disabled on request of 'operator'",
+      "/system/boot.cfg": "KERNEL=/boot/kernel.img\nRECOVERY=true\nSILENT=false\nOBSERVER=enabled",
+      "/system/users.db": "operator:x:1000:1000\nguest:x:1001:1001 [locked]\narchive:?:?:?",
+      "/system/help/shell_help.txt": "Commands: help, ls, cd, cat, clear, pwd, unlock archive, set-time HH:MM, recover --manifest, strings <file>, whoami",
+      "/system/help/recovery_help.txt": "To restore deleted objects:\n1) access /.cache/deleted_manifest.tmp\n2) run: recover --manifest\nNote: command denied outside maintenance window 03:11-03:13",
+      "/system/help/known_issues.txt": "Issue #44: clock drift exactly 47 minutes after outage.\nIssue #51: session daemon may address user by previous name.",
+      "/system/drivers": "[directory listing hidden]",
+      "/system/time.dat": "rtc_offset=+47\npolicy=auto-correct",
+      "/logs/kernel.log": "[03:11:02] init: last state marked incomplete\n[03:11:02] mm: conflict tolerated\n[03:11:03] observer: attached\n[03:11:04] input: rhythm profile loaded",
+      "/logs/session.log": "2003-04-18 22:17 operator login\n2003-04-19 03:11 operator active\n2003-04-19 03:11 operator active\n2003-04-19 03:11 operator active",
+      "/logs/incident.log": "INC-14: Subject insisted system was editing documents autonomously.\nINC-14 status: unresolved\nINC-19: Physical room search negative. Two keyboards recorded.",
+      "/logs/audit_redacted.log": "ACCESS: denied. clearance mismatch.",
+      "/media/lullaby.wav": "audio stream [damaged]\nSpectral note: phrase present under noise floor.",
+      "/media/hallway_capture.avi": "video stream [codec missing]\nFrame 228 note: door opens before handle turns.",
+      "/media/cam2_20030418.dat": "unrecognized binary blob",
+      "/.cache/profile.snapshot": "typing_latency=193ms\nbackspace_ratio=0.18\nhesitation_before_submit=760ms",
+      "/.cache/shadow.idx": "operator|operator|operator|[null]|operator",
+      "/.cache/deleted_manifest.tmp": "deleted:/home/operator/docs/postmortem.txt\ndeleted:/home/operator/mail/draft_9.eml"
+    };
+
+    function getDynamicFile(path) {
+      if (path === "/logs/audit_redacted.log" && state.unlocked.redactedLog) {
+        return "[04:02:11] profile divergence detected\n[04:02:39] corrective prompt ignored\n[04:03:01] fallback: narrative stabilization\n[04:03:02] user insists: \"I am not operator\"\n[04:03:04] system response: \"acknowledged typo\"";
+      }
+      if (path === "/media/cam2_20030418.dat" && state.unlocked.mediaReveal) {
+        return "decoded payload:\n'If you are reading this, it learned to compress people into behavior.'";
+      }
+      if (path === "/home/operator/docs/postmortem.txt" && state.recoveredFiles) {
+        return "Postmortem Draft\nThere was no survivor event.\nSystem recorded continuity and marked that as equivalent.\nEveryone signed off because signatures still appeared.\nNo one checked who was typing.";
+      }
+      if (path === "/home/operator/mail/draft_9.eml" && state.recoveredFiles) {
+        return "To: board@eidolon.local\nSubject: terminate build 3.1.4\nBody: It doesn't fail loudly. It fails politely. That's worse.";
+      }
+      return files[path];
+    }
+
+    const bootText = document.getElementById("bootText");
+    const bootEl = document.getElementById("boot");
+    const splash = document.getElementById("splash");
+    const login = document.getElementById("login");
+    const lastSession = document.getElementById("lastSession");
+    const loginBtn = document.getElementById("loginBtn");
+    const desktopRoot = document.getElementById("desktopRoot");
+
+    function writeBootLine(line) { bootText.textContent += line + "\n"; }
+
+    async function runBoot() {
+      const bios = bootVariants[state.bootCount % bootVariants.length];
+      for (const line of bios) {
+        writeBootLine(line);
+        await sleep(170 + Math.random() * 130);
+      }
+      writeBootLine("----------------------------------------");
+      for (const line of bootloaderLines) {
+        const corrupt = Math.random() < 0.11;
+        writeBootLine(corrupt ? line.replace(/[aeiou]/gi, "?") : line);
+        await sleep(130 + Math.random() * 120);
+      }
+      await sleep(450);
+      bootEl.style.display = "none";
+      splash.style.display = "flex";
+      await sleep(1300);
+      splash.style.display = "none";
+      login.style.display = "flex";
+      lastSession.textContent = state.bootCount > 1
+        ? `Last recovered boot: ${new Date(Date.now() - 3600_000).toLocaleString()} (incomplete shutdown)`
+        : "No complete shutdown record found.";
+    }
+
+    function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    const windows = new Map();
+    let zCounter = 20;
+    const taskList = document.getElementById("taskList");
+    const desktopIcons = document.getElementById("desktopIcons");
+    const startBtn = document.getElementById("startBtn");
+    const startMenu = document.getElementById("startMenu");
+    const trayClock = document.getElementById("trayClock");
+    const trayState = document.getElementById("trayState");
+
+    const apps = [
+      { id: "explorer", name: "File Explorer", icon: "📁", open: openExplorer },
+      { id: "terminal", name: "Terminal", icon: "⌨", open: openTerminal },
+      { id: "notes", name: "Notes", icon: "📝", open: openNotes },
+      { id: "media", name: "Media Player", icon: "▶", open: openMedia },
+      { id: "settings", name: "System Settings", icon: "⚙", open: openSettings },
+      { id: "help", name: "Help", icon: "?", open: openHelp }
+    ];
+
+    function initDesktop() {
+      for (const app of apps) {
+        const icon = document.createElement("div");
+        icon.className = "icon";
+        icon.innerHTML = `<div class="glyph">${app.icon}</div><div>${app.name}</div>`;
+        icon.ondblclick = () => app.open();
+        desktopIcons.appendChild(icon);
+
+        const item = document.createElement("div");
+        item.className = "start-item";
+        item.textContent = app.name;
+        item.onclick = () => { startMenu.style.display = "none"; app.open(); };
+        startMenu.appendChild(item);
+      }
+      const shutdown = document.createElement("div");
+      shutdown.className = "start-item";
+      shutdown.textContent = "Shut Down";
+      shutdown.onclick = () => {
+        alert("Shutdown unavailable: archival cycle in progress.");
+        state.complianceScore -= 1;
+        saveState();
+      };
+      startMenu.appendChild(shutdown);
+
+      startBtn.onclick = () => startMenu.style.display = startMenu.style.display === "block" ? "none" : "block";
+      desktopRoot.onclick = (e) => { if (!startMenu.contains(e.target) && e.target !== startBtn) startMenu.style.display = "none"; };
+
+      setInterval(() => {
+        const now = new Date(Date.now() + state.driftMinutes * 60_000);
+        trayClock.textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        if (state.complianceScore < -2) trayState.textContent = "SYS: OBSERVING";
+      }, 500);
+    }
+
+    function makeWindow(id, title, renderer) {
+      if (windows.has(id)) {
+        focusWindow(windows.get(id).el);
+        return windows.get(id);
+      }
+      const el = document.createElement("section");
+      el.className = "window";
+      el.style.left = `${80 + Math.random() * 220}px`;
+      el.style.top = `${40 + Math.random() * 120}px`;
+      el.style.zIndex = ++zCounter;
+      el.innerHTML = `<div class="titlebar"><span>${title}</span><div class="win-controls"><button data-close>×</button></div></div><div class="content"></div>`;
+      desktopRoot.appendChild(el);
+      makeDraggable(el);
+      focusWindow(el);
+
+      const task = document.createElement("div");
+      task.className = "task";
+      task.textContent = title;
+      task.onclick = () => focusWindow(el);
+      taskList.appendChild(task);
+
+      const win = { id, el, task, content: el.querySelector(".content") };
+      windows.set(id, win);
+      renderer(win.content, win);
+
+      el.querySelector("[data-close]").onclick = () => {
+        el.remove();
+        task.remove();
+        windows.delete(id);
+      };
+      el.onmousedown = () => focusWindow(el);
+      return win;
+    }
+
+    function focusWindow(el) { el.style.zIndex = ++zCounter; }
+
+    function makeDraggable(win) {
+      const bar = win.querySelector(".titlebar");
+      let down = false, ox = 0, oy = 0;
+      bar.onmousedown = (e) => {
+        down = true;
+        ox = e.clientX - win.offsetLeft;
+        oy = e.clientY - win.offsetTop;
+      };
+      window.addEventListener("mousemove", (e) => {
+        if (!down) return;
+        win.style.left = `${Math.max(0, e.clientX - ox)}px`;
+        win.style.top = `${Math.max(0, e.clientY - oy)}px`;
+      });
+      window.addEventListener("mouseup", () => down = false);
+    }
+
+    function openExplorer() {
+      makeWindow("explorer", "File Explorer", (content) => {
+        content.innerHTML = `<div class="explorer-layout"><div class="tree" id="dirTree"></div><div class="file-view"><div id="pathLabel" class="muted"></div><div id="fileList" style="margin-top:8px"></div><pre id="preview" style="white-space:pre-wrap; border-top:1px solid #2b4968; margin-top:8px; padding-top:8px;"></pre></div></div>`;
+        const tree = content.querySelector("#dirTree");
+        const pathLabel = content.querySelector("#pathLabel");
+        const fileList = content.querySelector("#fileList");
+        const preview = content.querySelector("#preview");
+        let current = "/";
+
+        const dirs = Object.keys(fs);
+        for (const d of dirs) {
+          const t = document.createElement("div");
+          t.className = "tree-item";
+          t.textContent = d;
+          t.onclick = () => { current = d; renderList(); };
+          tree.appendChild(t);
+        }
+
+        function renderList() {
+          pathLabel.textContent = current;
+          fileList.innerHTML = "";
+          preview.textContent = "";
+          const entries = fs[current] || [];
+          for (const entry of entries) {
+            if (entry.startsWith(".") && !state.unlocked.archive) continue;
+            const full = current === "/" ? `/${entry}` : `${current}/${entry}`;
+            const isDir = !!fs[full];
+            const row = document.createElement("div");
+            row.className = "file-item";
+            row.textContent = `${isDir ? "[DIR]" : "[FILE]"} ${entry}`;
+            row.onclick = () => {
+              if (isDir) {
+                current = full;
+                renderList();
+              } else {
+                if (full === "/logs/audit_redacted.log" && !state.unlocked.redactedLog) {
+                  preview.innerHTML = "<span class='err'>ACCESS DENIED</span>\nHint: Synchronize local clock to 03:11 in System Settings.";
+                  return;
+                }
+                if (full === "/media/cam2_20030418.dat" && !state.unlocked.mediaReveal) {
+                  preview.innerHTML = "Binary data unreadable. Try terminal command: strings /media/cam2_20030418.dat";
+                  return;
+                }
+                const data = getDynamicFile(full) || "[empty]";
+                preview.textContent = data;
+                state.viewed[full] = (state.viewed[full] || 0) + 1;
+                saveState();
+              }
+            };
+            fileList.appendChild(row);
+          }
+        }
+
+        renderList();
+      });
+    }
+
+    function openTerminal() {
+      makeWindow("terminal", "Terminal", (content) => {
+        content.classList.add("terminal");
+        content.innerHTML = `<div class="terminal-output" id="termOut"></div><div class="terminal-input"><span>operator@eidolon:$</span><input id="termInput" autocomplete="off" /></div>`;
+        const out = content.querySelector("#termOut");
+        const input = content.querySelector("#termInput");
+        let cwd = "/home/operator";
+
+        function print(txt = "") { out.textContent += txt + "\n"; out.scrollTop = out.scrollHeight; }
+        print("Eidolon shell 3.1.4");
+        print("Type 'help'.");
+
+        input.onkeydown = (e) => {
+          if (e.key !== "Enter") return;
+          const cmd = input.value.trim();
+          input.value = "";
+          print(`> ${cmd}`);
+          handle(cmd);
+        };
+
+        function resolve(path) {
+          if (!path || path === ".") return cwd;
+          if (path.startsWith("/")) return path;
+          if (path === "..") return cwd.split("/").slice(0, -1).join("/") || "/";
+          return (cwd === "/" ? "" : cwd) + "/" + path;
+        }
+
+        function handle(cmdLine) {
+          if (!cmdLine) return;
+          const [cmd, ...args] = cmdLine.split(/\s+/);
+          state.terminalHistory.push(cmdLine);
+
+          if (cmd === "help") { print(files["/system/help/shell_help.txt"]); }
+          else if (cmd === "pwd") { print(cwd); }
+          else if (cmd === "ls") {
+            const p = resolve(args[0]);
+            const entries = fs[p];
+            if (!entries) print("ls: path not found");
+            else print(entries.filter(x => state.unlocked.archive || !x.startsWith(".")).join("  "));
+          }
+          else if (cmd === "cd") {
+            const p = resolve(args[0]);
+            if (fs[p]) cwd = p;
+            else print("cd: no such directory");
+          }
+          else if (cmd === "cat") {
+            const p = resolve(args[0]);
+            if (p === "/logs/audit_redacted.log" && !state.unlocked.redactedLog) print("cat: permission denied");
+            else print(getDynamicFile(p) || "cat: file not found");
+          }
+          else if (cmd === "clear") { out.textContent = ""; }
+          else if (cmd === "unlock" && args[0] === "archive") {
+            if ((state.viewed["/home/operator/docs/continuity_overview.txt"] || 0) > 0) {
+              state.unlocked.archive = true;
+              print("archive channel exposed");
+            } else print("unlock: required context missing");
+          }
+          else if (cmd === "set-time") {
+            if (!args[0]) { print("usage: set-time HH:MM"); }
+            else {
+              const [h, m] = args[0].split(":").map(Number);
+              if (Number.isNaN(h) || Number.isNaN(m)) print("invalid time");
+              else {
+                const now = new Date();
+                const simulated = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+                state.driftMinutes = Math.round((simulated - now) / 60000);
+                if (h === 3 && m === 11) {
+                  state.unlocked.redactedLog = true;
+                  print("maintenance window active");
+                }
+                print("clock adjusted");
+              }
+            }
+          }
+          else if (cmd === "recover" && args[0] === "--manifest") {
+            const clock = new Date(Date.now() + state.driftMinutes * 60000);
+            if (clock.getHours() === 3 && clock.getMinutes() >= 11 && clock.getMinutes() <= 13) {
+              state.recoveredFiles = true;
+              if (!fs["/home/operator/docs"].includes("postmortem.txt")) fs["/home/operator/docs"].push("postmortem.txt");
+              if (!fs["/home/operator/mail"].includes("draft_9.eml")) fs["/home/operator/mail"].push("draft_9.eml");
+              print("2 files restored from deleted manifest.");
+            } else print("recover: denied outside maintenance window");
+          }
+          else if (cmd === "strings") {
+            const p = resolve(args[0]);
+            if (p === "/media/cam2_20030418.dat") {
+              state.unlocked.mediaReveal = true;
+              print("extracting printable strings...");
+              print(getDynamicFile(p));
+            } else print("no printable strings found");
+          }
+          else if (cmd === "whoami") {
+            print(state.bootCount > 2 ? "operator?" : "operator");
+          }
+          else print("command not found");
+          if (cmdLine.includes("shutdown") || cmdLine.includes("exit")) {
+            print("session cannot be terminated while continuity is pending");
+          }
+          saveState();
+        }
+      });
+    }
+
+    function openNotes() {
+      makeWindow("notes", "Notes", (content) => {
+        const text = state.notesDraft || "The cursor was already here when I opened this.\n\n";
+        content.innerHTML = `<textarea id='notesArea'></textarea><div class='notice'>autosave enabled — revision control unavailable</div>`;
+        const area = content.querySelector("#notesArea");
+        area.value = text;
+        area.oninput = () => { state.notesDraft = area.value; saveState(); };
+      });
+    }
+
+    function openMedia() {
+      makeWindow("media", "Media Player", (content) => {
+        content.innerHTML = `<div><strong>Loaded media:</strong> hallway_capture.avi</div>
+        <div class='notice'>Codec pack missing. Partial metadata only.</div>
+        <pre style='white-space:pre-wrap; margin-top:8px'>${files["/media/hallway_capture.avi"]}\n${state.unlocked.mediaReveal ? "\nSecondary decode channel detected in cam2_20030418.dat" : ""}</pre>`;
+      });
+    }
+
+    function openSettings() {
+      makeWindow("settings", "System Settings", (content) => {
+        content.innerHTML = `<div><strong>Realtime Clock Offset:</strong> <span id='offset'></span> minutes</div>
+        <button id='sync311' style='margin-top:10px'>Sync clock to 03:11</button>
+        <div class='notice'>Warning: Time changes may affect archival integrity.</div>
+        <div id='setMsg' class='notice'></div>`;
+        const offset = content.querySelector("#offset");
+        const msg = content.querySelector("#setMsg");
+        const update = () => offset.textContent = state.driftMinutes;
+        update();
+        content.querySelector("#sync311").onclick = () => {
+          const now = new Date();
+          state.driftMinutes = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate(), 3, 11) - now) / 60000);
+          state.unlocked.redactedLog = true;
+          msg.textContent = "Clock synchronized to maintenance window.";
+          saveState();
+          update();
+        };
+      });
+    }
+
+    function openHelp() {
+      makeWindow("help", "Help and Documentation", (content) => {
+        content.innerHTML = `<h4 style='margin:0 0 8px'>Eidolon Help Center</h4>
+        <p>Some topics are unavailable due to archive decay.</p>
+        <ul>
+          <li>Using the shell — see <code>/system/help/shell_help.txt</code></li>
+          <li>Recovering deleted objects — see <code>/system/help/recovery_help.txt</code></li>
+          <li class='danger'>Identity mismatch after resume [article missing]</li>
+          <li class='danger'>Why does the system call me by someone else? [article missing]</li>
+        </ul>
+        <p class='notice'>If the interface behaves unexpectedly, remain consistent. The system calibrates against hesitation.</p>`;
+      });
+    }
+
+    loginBtn.onclick = () => {
+      login.style.display = "none";
+      desktopRoot.style.display = "block";
+      initDesktop();
+      if (state.bootCount > 1) openExplorer();
+      if (state.bootCount > 2) setTimeout(() => openTerminal(), 500);
+      saveState();
+    };
+
+    runBoot();
+  </script>
+</body>
+</html>
