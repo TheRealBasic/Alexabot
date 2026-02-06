@@ -13,16 +13,9 @@ import { openNotes } from "./apps/notes.js";
 import { openMedia } from "./apps/media.js";
 import { openSettings } from "./apps/settings.js";
 import { openHelp } from "./apps/help.js";
+import { createPresentationController } from "./presentation.js";
 
 const state = applyProgressionFlags(loadState());
-const persist = () => saveState(state);
-const save = () => {
-  evaluateBehaviorReactions({ state, fs, saveState: persist });
-  persist();
-};
-const getDynamicFile = (path) => getDynamicFileBase(path, state);
-
-evaluateBehaviorReactions({ state, fs, saveState: persist });
 
 const bootText = document.getElementById("bootText");
 const bootEl = document.getElementById("boot");
@@ -37,6 +30,28 @@ const startBtn = document.getElementById("startBtn");
 const startMenu = document.getElementById("startMenu");
 const trayClock = document.getElementById("trayClock");
 const trayState = document.getElementById("trayState");
+const cinematicOverlay = document.getElementById("cinematicOverlay");
+const taskbar = document.querySelector(".taskbar");
+
+const presentation = createPresentationController({
+  state,
+  desktopRoot,
+  taskbar,
+  overlay: cinematicOverlay
+});
+
+const persist = () => saveState(state);
+let previousSnapshot = JSON.parse(JSON.stringify(state));
+const save = () => {
+  const prev = previousSnapshot;
+  evaluateBehaviorReactions({ state, fs, saveState: persist });
+  presentation.handleStateTransition(prev, state);
+  persist();
+  previousSnapshot = JSON.parse(JSON.stringify(state));
+};
+const getDynamicFile = (path) => getDynamicFileBase(path, state);
+
+evaluateBehaviorReactions({ state, fs, saveState: persist });
 
 const { makeWindow } = createWindowManager({ desktopRoot, taskList });
 
@@ -98,6 +113,7 @@ function initDesktop() {
 }
 
 loginBtn.onclick = () => {
+  presentation.startAmbient();
   login.style.display = "none";
   desktopRoot.style.display = "block";
   initDesktop();
