@@ -25,10 +25,17 @@ function actorLabel(actor) {
   return actor || "operator";
 }
 
+function canRunCommand(role, cmd) {
+  if (role === "operator") return true;
+  const observerAllowed = new Set(["help", "pwd", "history", "date", "ls", "cd", "cat", "clear", "whoami", "anomaly-hint", "ping"]);
+  return observerAllowed.has(cmd);
+}
+
 export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirectoryEntries, isContentVisible, state, saveState, completeObjective, notify }) {
   makeWindow("terminal", "Terminal", (content) => {
+    const role = state.activeRole || "operator";
     content.classList.add("terminal");
-    content.innerHTML = `<div class="terminal-output" id="termOut"></div><div class="terminal-input"><span>operator@eidolon:$</span><input id="termInput" autocomplete="off" /></div>`;
+    content.innerHTML = `<div class="terminal-output" id="termOut"></div><div class="terminal-input"><span>${role}@eidolon:$</span><input id="termInput" autocomplete="off" /></div>`;
     const out = content.querySelector("#termOut");
     const input = content.querySelector("#termInput");
     let cwd = "/home/operator";
@@ -46,23 +53,30 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
     function parseTerminalAction(cmdLine, actor = state.playerId) {
       const [cmd, ...args] = cmdLine.split(/\s+/);
       const timestamp = Date.now();
+      if (cmd === "ping" && args[0] === "operator") {
+        return { type: "CMD_OBSERVER_PING", actor, role, timestamp, commandLine: cmdLine };
+      }
+      if (cmd === "relay" && args[0] === "exec") {
+        return { type: "CMD_EXEC_RELAY", actor, role, timestamp, commandLine: cmdLine, code: args[1] || "" };
+      }
       if (cmd === "unlock" && args[0] === "archive") {
-        return { type: "CMD_UNLOCK_ARCHIVE", actor, timestamp, commandLine: cmdLine };
+        return { type: "CMD_UNLOCK_ARCHIVE", actor, role, timestamp, commandLine: cmdLine };
       }
       if (cmd === "set-time") {
         if (!args[0]) return { parseError: "usage: set-time HH:MM" };
         const [h, m] = args[0].split(":").map(Number);
         if (!isValidTime(h, m)) return { parseError: "invalid time (use HH:MM 00-23:00-59)" };
-        return { type: "CMD_SET_TIME", actor, timestamp, commandLine: cmdLine, hours: h, minutes: m };
+        return { type: "CMD_SET_TIME", actor, role, timestamp, commandLine: cmdLine, hours: h, minutes: m };
       }
       if (cmd === "recover" && args[0] === "--manifest") {
-        return { type: "CMD_RECOVER_MANIFEST", actor, timestamp, commandLine: cmdLine };
+        return { type: "CMD_RECOVER_MANIFEST", actor, role, timestamp, commandLine: cmdLine };
       }
       if (cmd === "strings") {
         const path = normalizePath(cwd, args[0]);
         return {
           type: "CMD_STRINGS",
           actor,
+          role,
           timestamp,
           commandLine: cmdLine,
           path,
@@ -86,6 +100,11 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       const action = parseTerminalAction(cmdLine);
       const isActionCommand = Boolean(action?.type);
 
+      if (!canRunCommand(role, cmd) && !isActionCommand) {
+        print("permission denied for current role");
+        return;
+      }
+
       if (!isActionCommand || state.sessionMode === "solo") {
         addHistory(cmdLine);
       }
@@ -93,7 +112,10 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       if (cmd === "help") print(files["/system/help/shell_help.txt"]);
       else if (cmd === "pwd") print(cwd);
       else if (cmd === "history") printHistory();
-      else if (cmd === "date") print(new Date(Date.now() + state.driftMinutes * 60_000).toString());
+      else if (cmd === "anomaly-hint") {
+        if (role !== "observer") print("anomaly-hint: restricted to observer");
+        else print(state.relaySignal?.code ? `transient relay code: ${state.relaySignal.code}` : "monitor incident log for transient code flashes");
+      } else if (cmd === "date") print(new Date(Date.now() + state.driftMinutes * 60_000).toString());
       else if (cmd === "ls") {
         const p = normalizePath(cwd, args[0]);
         const entries = getDirectoryEntries(p, state);
@@ -106,22 +128,27 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       } else if (cmd === "cat") {
         const p = normalizePath(cwd, args[0]);
         if (!isContentVisible(p, state)) print("cat: file not found");
-        else if (p === "/logs/audit_redacted.log" && !state.unlocked.redactedLog) print("cat: permission denied");
+        else if (p === "/logs/audit_redacted.log" && !state.unlocked.redactedLog && role !== "observer") print("cat: permission denied");
         else {
           print(getDynamicFile(p) || "cat: file not found");
           incrementFileView(state, p);
-          if (p === "/logs/audit_redacted.log" && state.unlocked.redactedLog) completeObjective({ type: "objective.complete", objectiveId: "access_redacted_audit" });
+          if (p === "/logs/audit_redacted.log" && (state.unlocked.redactedLog || role === "observer")) completeObjective({ type: "objective.complete", objectiveId: "access_redacted_audit" });
+          if (role === "observer" && p === "/logs/incident.log") completeObjective({ type: "objective.complete", objectiveId: "observer_anomaly_trace" });
         }
       } else if (cmd === "clear") out.textContent = "";
       else if (action?.parseError) {
         print(action.parseError);
       } else if (isActionCommand) {
-        const result = completeObjective(action);
-        if (result?.accepted === false && state.sessionMode === "coop") {
-          print("queued for server confirmation...");
+        if (role !== "operator" && action.type !== "CMD_OBSERVER_PING") {
+          print("command restricted to operator role");
+        } else {
+          const result = completeObjective(action);
+          if (result?.accepted === false && state.sessionMode === "coop") {
+            print("queued for server confirmation...");
+          }
+          for (const line of result?.terminalLines || []) print(line);
         }
-        for (const line of result?.terminalLines || []) print(line);
-      } else if (cmd === "whoami") print(state.bootCount > 2 ? "operator?" : "operator");
+      } else if (cmd === "whoami") print(role);
       else if (cmd === "reset-session") {
         clearState();
         notify?.("Session state cleared. Reloading...", { actor: actorLabel(state.playerId) });
@@ -134,7 +161,8 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       saveState();
     }
 
-    print("Eidolon shell 3.1.4");
+    print(`Eidolon shell 3.1.4 // ${role} channel`);
+    if (role === "observer") print("Observer tools active: anomaly-hint, ping operator");
     print("Type 'help'.");
 
     input.onkeydown = (e) => {
