@@ -130,6 +130,9 @@
       font-size: 12px;
       color: #d2dfed;
       cursor: pointer;
+      background: transparent;
+      border: 0;
+      padding: 0;
     }
 
     .icon .glyph {
@@ -168,7 +171,7 @@
     }
 
     .tasklist { flex: 1; display: flex; gap: 4px; overflow: hidden; }
-    .task { border: 1px solid #2f5478; background: #10263a; color: #d7e4ef; padding: 4px 8px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .task { border: 1px solid #2f5478; background: #10263a; color: #d7e4ef; padding: 4px 8px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor:pointer; }
     .tray { display: flex; align-items: center; gap: 10px; padding: 0 10px; color: #a9bdd3; }
 
     .start-menu {
@@ -183,7 +186,7 @@
       box-shadow: var(--shadow);
     }
 
-    .start-item { padding: 9px 10px; border-bottom: 1px solid rgba(62,95,126,0.4); cursor: pointer; }
+    .start-item { width: 100%; text-align:left; padding: 9px 10px; border:0; border-bottom: 1px solid rgba(62,95,126,0.4); cursor: pointer; background: transparent; color: #d2dfed; }
     .start-item:hover { background: rgba(88,130,168,0.15); }
 
     .window {
@@ -217,7 +220,7 @@
 
     .explorer-layout { display: grid; grid-template-columns: 200px 1fr; gap: 10px; height: 100%; }
     .tree, .file-view { border: 1px solid #284764; padding: 8px; background: rgba(3,10,16,0.35); overflow: auto; }
-    .tree-item, .file-item { padding: 3px 6px; cursor: pointer; }
+    .tree-item, .file-item { width:100%; text-align:left; border:0; background:transparent; color:inherit; padding: 3px 6px; cursor: pointer; }
     .tree-item:hover, .file-item:hover { background: rgba(112,154,191,0.2); }
     .selected { background: rgba(112,154,191,0.35); }
     .muted { color: var(--muted); }
@@ -328,6 +331,25 @@
     .taskbar.fx-warning-pulse {
       animation: taskbar-warning 0.32s ease-in-out infinite;
     }
+    .notification-center {
+      position: absolute;
+      right: 14px;
+      bottom: 44px;
+      display: grid;
+      gap: 8px;
+      z-index: 55;
+      width: 310px;
+    }
+
+    .toast {
+      border: 1px solid #375b7a;
+      background: rgba(6, 19, 31, 0.92);
+      color: #d5e5f4;
+      font-size: 12px;
+      padding: 8px 10px;
+      box-shadow: var(--shadow);
+    }
+
 
     @keyframes screen-flicker {
       0%, 100% { opacity: 1; }
@@ -367,6 +389,7 @@
     <div class="start-menu" id="startMenu"></div>
 
     <div id="cinematicOverlay" class="cinematic-overlay"></div>
+    <div id="notificationCenter" class="notification-center" aria-live="polite"></div>
 
     <div class="taskbar">
       <button class="start-btn" id="startBtn">Start</button>

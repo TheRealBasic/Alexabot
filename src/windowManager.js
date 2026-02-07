@@ -1,32 +1,33 @@
 export function createWindowManager({ desktopRoot, taskList }) {
   const windows = new Map();
   let zCounter = 20;
+  let dragState = null;
 
   function focusWindow(el) {
     el.style.zIndex = ++zCounter;
   }
 
+  window.addEventListener("mousemove", (e) => {
+    if (!dragState) return;
+    const { win, ox, oy } = dragState;
+    win.style.left = `${Math.max(0, e.clientX - ox)}px`;
+    win.style.top = `${Math.max(0, e.clientY - oy)}px`;
+  });
+
+  window.addEventListener("mouseup", () => {
+    dragState = null;
+  });
+
   function makeDraggable(win) {
     const bar = win.querySelector(".titlebar");
-    let down = false;
-    let ox = 0;
-    let oy = 0;
-
     bar.onmousedown = (e) => {
-      down = true;
-      ox = e.clientX - win.offsetLeft;
-      oy = e.clientY - win.offsetTop;
+      dragState = {
+        win,
+        ox: e.clientX - win.offsetLeft,
+        oy: e.clientY - win.offsetTop
+      };
+      focusWindow(win);
     };
-
-    window.addEventListener("mousemove", (e) => {
-      if (!down) return;
-      win.style.left = `${Math.max(0, e.clientX - ox)}px`;
-      win.style.top = `${Math.max(0, e.clientY - oy)}px`;
-    });
-
-    window.addEventListener("mouseup", () => {
-      down = false;
-    });
   }
 
   function makeWindow(id, title, renderer) {
@@ -40,14 +41,15 @@ export function createWindowManager({ desktopRoot, taskList }) {
     el.style.left = `${80 + Math.random() * 220}px`;
     el.style.top = `${40 + Math.random() * 120}px`;
     el.style.zIndex = ++zCounter;
-    el.innerHTML = `<div class="titlebar"><span>${title}</span><div class="win-controls"><button data-close>×</button></div></div><div class="content"></div>`;
+    el.innerHTML = `<div class="titlebar"><span>${title}</span><div class="win-controls"><button data-close aria-label="Close window">×</button></div></div><div class="content"></div>`;
     desktopRoot.appendChild(el);
 
     makeDraggable(el);
     focusWindow(el);
 
-    const task = document.createElement("div");
+    const task = document.createElement("button");
     task.className = "task";
+    task.type = "button";
     task.textContent = title;
     task.onclick = () => focusWindow(el);
     taskList.appendChild(task);
@@ -57,6 +59,7 @@ export function createWindowManager({ desktopRoot, taskList }) {
     renderer(win.content, win);
 
     el.querySelector("[data-close]").onclick = () => {
+      if (dragState?.win === el) dragState = null;
       el.remove();
       task.remove();
       windows.delete(id);

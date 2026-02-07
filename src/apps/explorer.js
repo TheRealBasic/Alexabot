@@ -1,4 +1,15 @@
-import { completeObjective } from "../state.js";
+import { completeObjective, incrementFileView } from "../state.js";
+
+function buildVisibleDirectories(fs, state) {
+  return Object.keys(fs)
+    .filter((path) => state.unlocked.archive || !path.startsWith("/."))
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function getDepth(path) {
+  if (path === "/") return 0;
+  return path.split("/").filter(Boolean).length - 1;
+}
 
 export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntries, state, saveState }) {
   makeWindow("explorer", "File Explorer", (content) => {
@@ -9,14 +20,18 @@ export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntri
     const preview = content.querySelector("#preview");
     let current = "/";
 
-    for (const d of Object.keys(fs)) {
-      const t = document.createElement("div");
+    const selectDir = (path) => {
+      current = path;
+      renderList();
+    };
+
+    for (const d of buildVisibleDirectories(fs, state)) {
+      const t = document.createElement("button");
       t.className = "tree-item";
+      t.type = "button";
+      t.style.paddingLeft = `${6 + getDepth(d) * 12}px`;
       t.textContent = d;
-      t.onclick = () => {
-        current = d;
-        renderList();
-      };
+      t.onclick = () => selectDir(d);
       tree.appendChild(t);
     }
 
@@ -30,8 +45,9 @@ export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntri
         if (entry.startsWith(".") && !state.unlocked.archive) continue;
         const full = current === "/" ? `/${entry}` : `${current}/${entry}`;
         const isDir = !!fs[full];
-        const row = document.createElement("div");
+        const row = document.createElement("button");
         row.className = "file-item";
+        row.type = "button";
         row.textContent = `${isDir ? "[DIR]" : "[FILE]"} ${entry}`;
         row.onclick = () => {
           if (isDir) {
@@ -46,12 +62,7 @@ export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntri
           }
 
           if (full === "/media/cam2_20030418.dat" && !state.unlocked.mediaReveal) {
-            preview.innerHTML = "Binary data unreadable. Try staged decode in Media Player or terminal strings extraction.";
-            return;
-          }
-
-          if (full === "/logs/chimera_clearance.log" && !state.unlocked.witnessMap) {
-            preview.innerHTML = "ACCESS PENDING\nHint: combine triangulation protocol (Explorer) + recovery/decode history (Terminal/Media) + 03:11 sync (Settings), then compile in Help.";
+            preview.innerHTML = "Binary data unreadable. Try terminal command: strings /media/cam2_20030418.dat";
             return;
           }
 
@@ -59,7 +70,7 @@ export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntri
           if (full === "/logs/audit_redacted.log" && state.unlocked.redactedLog) {
             completeObjective(state, "access_redacted_audit");
           }
-          state.viewed[full] = (state.viewed[full] || 0) + 1;
+          incrementFileView(state, full);
           saveState();
         };
         fileList.appendChild(row);

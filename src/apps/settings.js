@@ -1,39 +1,52 @@
-import { completeObjective } from "../state.js";
+function parseTime(value) {
+  const [hours, minutes] = String(value || "").split(":").map(Number);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return { hours, minutes };
+}
 
-export function openSettings({ makeWindow, state, saveState }) {
+export function openSettings({ makeWindow, state, saveState, notify }) {
   makeWindow("settings", "System Settings", (content) => {
     content.innerHTML = `<div><strong>Realtime Clock Offset:</strong> <span id='offset'></span> minutes</div>
+      <div style='margin-top:10px; display:flex; gap:6px; align-items:center'>
+        <input id='manualTime' type='time' value='03:11' />
+        <button id='applyTime'>Apply</button>
+      </div>
       <button id='sync311' style='margin-top:10px'>Sync clock to 03:11</button>
-      <button id='applyMaintenance' style='margin-top:10px; margin-left:8px'>Apply maintenance profile</button>
       <div class='notice'>Warning: Time changes may affect archival integrity.</div>
       <div id='setMsg' class='notice'></div>`;
 
     const offset = content.querySelector("#offset");
     const msg = content.querySelector("#setMsg");
+    const manual = content.querySelector("#manualTime");
+
+    const applyClock = (hours, minutes) => {
+      const now = new Date();
+      state.driftMinutes = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes) - now) / 60000);
+      if (hours === 3 && minutes === 11) {
+        state.unlocked.redactedLog = true;
+        msg.textContent = "Clock synchronized to maintenance window.";
+      } else {
+        msg.textContent = `Clock synchronized to ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}.`;
+      }
+      saveState();
+      notify?.("RTC offset updated.");
+      update();
+    };
+
     const update = () => {
       offset.textContent = state.driftMinutes;
     };
 
     update();
-    content.querySelector("#sync311").onclick = () => {
-      const now = new Date();
-      state.driftMinutes = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate(), 3, 11) - now) / 60000);
-      state.unlocked.redactedLog = true;
-      state.unlocked.settingsSynced = true;
-      completeObjective(state, "set_time_0311");
-      msg.textContent = "Clock synchronized to maintenance window.";
-      saveState();
-      update();
-    };
-
-    content.querySelector("#applyMaintenance").onclick = () => {
-      if (!state.unlocked.redactedLog) {
-        msg.textContent = "Maintenance profile requires a 03:11 sync first.";
+    content.querySelector("#sync311").onclick = () => applyClock(3, 11);
+    content.querySelector("#applyTime").onclick = () => {
+      const parsed = parseTime(manual.value);
+      if (!parsed) {
+        msg.textContent = "Invalid time.";
         return;
       }
-      state.unlocked.maintenanceProfile = true;
-      msg.textContent = "Maintenance profile active. Cross-reference with recovery + decode artifacts.";
-      saveState();
+      applyClock(parsed.hours, parsed.minutes);
     };
   });
 }
