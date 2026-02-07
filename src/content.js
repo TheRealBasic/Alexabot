@@ -31,7 +31,7 @@ export const files = {
   "/home/guest/note.txt": "guest account disabled on request of 'operator'",
   "/system/boot.cfg": "KERNEL=/boot/kernel.img\nRECOVERY=true\nSILENT=false\nOBSERVER=enabled",
   "/system/users.db": "operator:x:1000:1000\nguest:x:1001:1001 [locked]\narchive:?:?:?",
-  "/system/help/shell_help.txt": "Commands: help, ls, cd, cat, clear, pwd, unlock archive, set-time HH:MM, recover --manifest, strings <file>, whoami, history, date, reset-session",
+  "/system/help/shell_help.txt": "Commands: help, ls, cd, cat, clear, pwd, unlock archive, set-time HH:MM, recover --manifest, strings <file>, whoami, history, date, anomaly-hint, ping operator, relay exec <code>, reset-session",
   "/system/help/recovery_help.txt": "To restore deleted objects:\n1) access /.cache/deleted_manifest.tmp\n2) run: recover --manifest\nNote: command denied outside maintenance window 03:11-03:13",
   "/system/help/known_issues.txt": "Issue #44: clock drift exactly 47 minutes after outage.\nIssue #51: session daemon may address user by previous name.",
   "/system/drivers": "[directory listing hidden]",
@@ -90,6 +90,15 @@ export function getDirectoryEntries(path, state) {
 
 export function getDynamicFile(path, state) {
   if (!isContentVisible(path, state)) return undefined;
+
+  if (path === "/logs/audit_redacted.log" && state.activeRole === "observer") {
+    return "[observer mirror] divergence index: 0.42\n[observer mirror] corrective branch armed\n[observer mirror] operator acknowledgement pending";
+  }
+
+  if (path === "/logs/incident.log" && state.activeRole === "observer" && state.relaySignal && !state.relaySignal.resolvedBy) {
+    const seconds = Math.max(0, Math.ceil((state.relaySignal.expiresAt - Date.now()) / 1000));
+    return `${files[path]}\nINC-22: transient relay ${state.relaySignal.code} (${seconds}s remaining)`;
+  }
   if (path === "/logs/audit_redacted.log" && state.unlocked.redactedLog) {
     return "[04:02:11] profile divergence detected\n[04:02:39] corrective prompt ignored\n[04:03:01] fallback: narrative stabilization\n[04:03:02] user insists: \"I am not operator\"\n[04:03:04] system response: \"acknowledged typo\"";
   }

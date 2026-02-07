@@ -56,7 +56,7 @@ export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntri
             return;
           }
 
-          if (full === "/logs/audit_redacted.log" && !state.unlocked.redactedLog) {
+          if (full === "/logs/audit_redacted.log" && !state.unlocked.redactedLog && state.activeRole !== "observer") {
             preview.innerHTML = "<span class='err'>ACCESS DENIED</span>\nHint: Synchronize local clock to 03:11 in System Settings.";
             return;
           }
@@ -67,8 +67,11 @@ export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntri
           }
 
           preview.textContent = getDynamicFile(full) || "[empty]";
-          if (full === "/logs/audit_redacted.log" && state.unlocked.redactedLog) {
-            completeObjective(state, "access_redacted_audit");
+          if (full === "/logs/audit_redacted.log" && (state.unlocked.redactedLog || state.activeRole === "observer")) {
+            completeObjective({ type: "objective.complete", objectiveId: "access_redacted_audit" });
+          }
+          if (full === "/logs/incident.log" && state.activeRole === "observer") {
+            completeObjective({ type: "objective.complete", objectiveId: "observer_anomaly_trace" });
           }
           incrementFileView(state, full);
           saveState();

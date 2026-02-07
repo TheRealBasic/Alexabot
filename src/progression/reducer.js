@@ -20,6 +20,10 @@ function appendHistory(state, action) {
   });
 }
 
+function requiresOperator(actionType) {
+  return new Set(["CMD_UNLOCK_ARCHIVE", "CMD_SET_TIME", "CMD_RECOVER_MANIFEST", "CMD_STRINGS", "CMD_EXEC_RELAY"]).has(actionType);
+}
+
 export function applyAction(state, action = {}) {
   const output = { terminalLines: [], notifications: [] };
 
@@ -29,7 +33,55 @@ export function applyAction(state, action = {}) {
   }
 
   if (!action.type?.startsWith("CMD_")) return output;
+
+  if (requiresOperator(action.type) && action.role && action.role !== "operator") {
+    output.terminalLines.push("permission denied: operator role required");
+    return output;
+  }
+
   appendHistory(state, action);
+
+  if (action.type === "CMD_OBSERVER_PING") {
+    if (action.role && action.role !== "observer") {
+      output.terminalLines.push("permission denied: observer role required");
+      return output;
+    }
+    const code = String(Math.floor(1000 + Math.random() * 9000));
+    state.relaySignal = {
+      code,
+      generatedAt: action.timestamp || Date.now(),
+      expiresAt: (action.timestamp || Date.now()) + 30_000,
+      generatedBy: getActorName(action.actor),
+      resolvedBy: null
+    };
+    completeObjective(state, "observer_ping_operator");
+    output.terminalLines.push(`relay code emitted: ${code}`);
+    output.notifications.push({ actor: getActorName(action.actor), message: `Observer pinged operator with relay code ${code}.` });
+    return output;
+  }
+
+  if (action.type === "CMD_EXEC_RELAY") {
+    const relay = state.relaySignal;
+    const now = action.timestamp || Date.now();
+    if (!relay) {
+      output.terminalLines.push("relay: no active signal");
+      return output;
+    }
+    if (now > relay.expiresAt) {
+      state.relaySignal = null;
+      output.terminalLines.push("relay: signal expired");
+      return output;
+    }
+    if (action.code !== relay.code) {
+      output.terminalLines.push("relay: invalid code");
+      return output;
+    }
+    state.relaySignal.resolvedBy = getActorName(action.actor);
+    completeObjective(state, "operator_execute_relay");
+    output.terminalLines.push("relay handshake accepted");
+    output.notifications.push({ actor: getActorName(action.actor), message: "Operator executed observer relay in time." });
+    return output;
+  }
 
   if (action.type === "CMD_UNLOCK_ARCHIVE") {
     if ((state.viewed?.["/home/operator/docs/continuity_overview.txt"] || 0) > 0) {

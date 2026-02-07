@@ -20,12 +20,20 @@ import { createPresentationController } from "./presentation.js";
 const params = new URLSearchParams(window.location.search);
 const roomId = params.get("room");
 const playerId = params.get("player") || `p-${Math.floor(Math.random() * 1e6).toString(36)}`;
+const preferredRole = params.get("role") === "observer" ? "observer" : "operator";
 const sessionMode = roomId ? "coop" : "solo";
 
 const state = applyProgressionFlags(loadState());
 state.sessionMode = sessionMode;
 state.roomId = roomId;
 state.playerId = playerId;
+if (!state.playerRoles || typeof state.playerRoles !== "object") state.playerRoles = {};
+
+const currentRole = state.playerRoles[playerId] || preferredRole;
+state.playerRoles[playerId] = currentRole;
+state.activeRole = currentRole;
+if (!state.roles || typeof state.roles !== "object") state.roles = { operator: null, observer: null };
+if (!state.roles[currentRole]) state.roles[currentRole] = playerId;
 rehydrateContentFromState(state);
 
 const bootText = document.getElementById("bootText");
@@ -74,6 +82,11 @@ const applyAuthoritativeUpdate = (patch, isSnapshot = false) => {
   } else {
     applyIncrementalPatch(state, patch);
   }
+  state.activeRole = currentRole;
+  if (!state.playerRoles || typeof state.playerRoles !== "object") state.playerRoles = {};
+  state.playerRoles[playerId] = currentRole;
+  if (!state.roles || typeof state.roles !== "object") state.roles = { operator: null, observer: null };
+  if (!state.roles[currentRole]) state.roles[currentRole] = playerId;
   rehydrateContentFromState(state);
   presentation.handleStateTransition(prev, state);
   previousSnapshot = JSON.parse(JSON.stringify(state));
@@ -151,6 +164,7 @@ const save = () => {
 
   const patch = {};
   for (const key of Object.keys(state)) {
+    if (key === "activeRole" || key === "playerId") continue;
     if (JSON.stringify(previousSnapshot[key]) !== JSON.stringify(state[key])) patch[key] = state[key];
   }
   if (Object.keys(patch).length > 0) {
@@ -192,11 +206,25 @@ function mountObjectivePanel() {
   desktopRoot.appendChild(panel);
 
   const render = () => {
-    const active = getActiveObjectives(state);
+    const active = getActiveObjectives(state, state.activeRole);
+    const teammateRole = state.activeRole === "operator" ? "observer" : "operator";
+    const teammateId = state.roles?.[teammateRole] || "unassigned";
+    const teammateActivity = [...(state.terminalHistory || [])]
+      .reverse()
+      .find((entry) => typeof entry !== "string" && entry.actor !== state.playerId);
+    const relayCue = state.relaySignal
+      ? (state.relaySignal.resolvedBy
+          ? `Relay acknowledged by ${state.relaySignal.resolvedBy}.`
+          : `Relay pending (${Math.max(0, Math.ceil((state.relaySignal.expiresAt - Date.now()) / 1000))}s remaining).`)
+      : "No active relay.";
     panel.innerHTML = `
       <div class="objective-title">${getChapterLabel(state.chapter)}</div>
+      <div class="objective-subtitle">Role: ${state.activeRole}</div>
+      <div class="notice">Teammate (${teammateRole}): ${teammateId}</div>
+      <div class="notice">${teammateActivity ? `Last teammate command: ${teammateActivity.command}` : "No teammate activity yet."}</div>
+      <div class="notice">${relayCue}</div>
       <div class="objective-subtitle">Active Objectives</div>
-      <ul>${active.map((objective) => `<li>${objective.label}</li>`).join("") || "<li>All objectives complete.</li>"}</ul>
+      <ul>${active.map((objective) => `<li><strong>[${(objective.roles || ["operator"]).join("/")}]</strong> ${objective.label}</li>`).join("") || "<li>All objectives complete.</li>"}</ul>
     `;
   };
 
@@ -205,12 +233,12 @@ function mountObjectivePanel() {
 }
 
 const apps = [
-  { name: "File Explorer", icon: "📁", open: () => openExplorer(appContext) },
-  { name: "Terminal", icon: "⌨", open: () => openTerminal(appContext) },
-  { name: "Notes", icon: "📝", open: () => openNotes(appContext) },
-  { name: "Media Player", icon: "▶", open: () => openMedia(appContext) },
-  { name: "System Settings", icon: "⚙", open: () => openSettings(appContext) },
-  { name: "Help", icon: "?", open: () => openHelp(appContext) }
+  { name: "File Explorer", icon: "📁", roles: ["operator", "observer"], open: () => openExplorer(appContext) },
+  { name: "Terminal", icon: "⌨", roles: ["operator", "observer"], open: () => openTerminal(appContext) },
+  { name: "Notes", icon: "📝", roles: ["operator", "observer"], open: () => openNotes(appContext) },
+  { name: "Media Player", icon: "▶", roles: ["operator"], open: () => openMedia(appContext) },
+  { name: "System Settings", icon: "⚙", roles: ["operator"], open: () => openSettings(appContext) },
+  { name: "Help", icon: "?", roles: ["operator", "observer"], open: () => openHelp(appContext) }
 ];
 
 function openStartupNotification() {
@@ -229,6 +257,7 @@ function initDesktop() {
   renderObjectivePanel = mountObjectivePanel();
 
   for (const app of apps) {
+    if (Array.isArray(app.roles) && !app.roles.includes(state.activeRole)) continue;
     const icon = document.createElement("button");
     icon.className = "icon";
     icon.type = "button";

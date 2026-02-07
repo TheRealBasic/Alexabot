@@ -3,11 +3,14 @@ export const STORAGE_KEY = "eidolon_state_v1";
 export const defaultState = {
   chapter: 1,
   objectives: [
-    { id: "unlock_archive", label: "Unlock archive channel", chapter: 1 },
-    { id: "set_time_0311", label: "Synchronize local clock to 03:11", chapter: 1 },
-    { id: "recover_manifest", label: "Recover deleted manifest", chapter: 2 },
-    { id: "decode_cam2", label: "Decode cam2 payload", chapter: 2 },
-    { id: "access_redacted_audit", label: "Access redacted audit", chapter: 2 }
+    { id: "unlock_archive", label: "Unlock archive channel", chapter: 1, roles: ["operator"] },
+    { id: "set_time_0311", label: "Synchronize local clock to 03:11", chapter: 1, roles: ["operator"] },
+    { id: "observer_ping_operator", label: "Observer: capture transient relay code and ping operator", chapter: 1, roles: ["observer"] },
+    { id: "operator_execute_relay", label: "Operator: execute observer relay code before timeout", chapter: 1, roles: ["operator"] },
+    { id: "recover_manifest", label: "Recover deleted manifest", chapter: 2, roles: ["operator"] },
+    { id: "decode_cam2", label: "Decode cam2 payload", chapter: 2, roles: ["operator"] },
+    { id: "access_redacted_audit", label: "Access redacted audit", chapter: 2, roles: ["observer", "operator"] },
+    { id: "observer_anomaly_trace", label: "Observer: flag anomaly signature in system logs", chapter: 2, roles: ["observer"] }
   ],
   completedObjectives: [],
   bootCount: 0,
@@ -23,6 +26,15 @@ export const defaultState = {
   sessionId: Math.floor(Math.random() * 1e6),
   sessionMode: "solo",
   playerId: "local-player",
+  activeRole: "operator",
+  roles: {
+    operator: "local-player",
+    observer: null
+  },
+  playerRoles: {
+    "local-player": "operator"
+  },
+  relaySignal: null,
   roomId: null,
   reactionFlags: {
     alteredBootLines: false,
@@ -45,6 +57,8 @@ export function loadState() {
         ...defaultState,
         ...parsed,
         unlocked: { ...defaultState.unlocked, ...(parsed.unlocked || {}) },
+        roles: { ...defaultState.roles, ...(parsed.roles || {}) },
+        playerRoles: { ...defaultState.playerRoles, ...(parsed.playerRoles || {}) },
         reactionFlags: { ...defaultState.reactionFlags, ...(parsed.reactionFlags || {}) },
         cinematicSeen: { ...defaultState.cinematicSeen, ...(parsed.cinematicSeen || {}) }
       }
@@ -76,9 +90,10 @@ export function completeObjective(state, objectiveId) {
   updateChapter(state);
 }
 
-export function getActiveObjectives(state) {
+export function getActiveObjectives(state, role = state.activeRole) {
   return state.objectives.filter((objective) => {
-    return objective.chapter <= state.chapter && !state.completedObjectives.includes(objective.id);
+    const visibleToRole = !Array.isArray(objective.roles) || objective.roles.includes(role);
+    return visibleToRole && objective.chapter <= state.chapter && !state.completedObjectives.includes(objective.id);
   });
 }
 
@@ -105,8 +120,20 @@ export function applyProgressionFlags(state) {
   if (!Array.isArray(state.objectives) || state.objectives.length === 0) {
     state.objectives = [...defaultState.objectives];
   }
+  if (!state.objectives.every((objective) => Array.isArray(objective.roles))) {
+    state.objectives = [...defaultState.objectives];
+  }
   if (!Array.isArray(state.completedObjectives)) {
     state.completedObjectives = [];
+  }
+  if (!state.roles || typeof state.roles !== "object") {
+    state.roles = { ...defaultState.roles };
+  }
+  if (!state.playerRoles || typeof state.playerRoles !== "object") {
+    state.playerRoles = { ...defaultState.playerRoles };
+  }
+  if (!state.activeRole) {
+    state.activeRole = "operator";
   }
   if (!state.chapter) {
     state.chapter = 1;

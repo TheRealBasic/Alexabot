@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultState, completeObjective, getProgressSignature, incrementFileView } from '../src/state.js';
+import { defaultState, completeObjective, getActiveObjectives, getProgressSignature, incrementFileView } from '../src/state.js';
 
 function makeState() {
   return JSON.parse(JSON.stringify(defaultState));
@@ -25,4 +25,15 @@ test('progress signature is stable and sorted', () => {
   const state = makeState();
   state.completedObjectives = ['b', 'a'];
   assert.equal(getProgressSignature(state), '1:a|b');
+});
+
+
+test('active objectives are filtered by role', () => {
+  const state = makeState();
+  const operatorObjectives = getActiveObjectives(state, 'operator').map((o) => o.id);
+  const observerObjectives = getActiveObjectives(state, 'observer').map((o) => o.id);
+
+  assert.ok(operatorObjectives.includes('unlock_archive'));
+  assert.ok(!operatorObjectives.includes('observer_ping_operator'));
+  assert.ok(observerObjectives.includes('observer_ping_operator'));
 });
