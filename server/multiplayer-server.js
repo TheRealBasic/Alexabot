@@ -1,5 +1,6 @@
 import { WebSocketServer } from "ws";
-import { defaultState, completeObjective } from "../src/state.js";
+import { defaultState } from "../src/state.js";
+import { applyAction } from "../src/progression/reducer.js";
 
 const PORT = Number(process.env.MULTIPLAYER_PORT || 8787);
 const rooms = new Map();
@@ -92,20 +93,26 @@ wss.on("connection", (socket) => {
     const previous = structuredClone(room.state);
     const action = message.action || {};
 
-    if (action.type === "objective.complete") {
-      completeObjective(room.state, action.objectiveId);
-    }
-
     if (action.type === "state.patch") {
       applyClientPatch(room, action.patch);
+    } else {
+      applyAction(room.state, action);
     }
 
     room.version += 1;
+    const meta = { roomId: room.roomId, version: room.version };
+
+    broadcast(room, {
+      type: "action.applied",
+      action,
+      meta
+    });
+
     const patch = computePatch(previous, room.state);
     broadcast(room, {
       type: "patch",
       patch,
-      meta: { roomId: room.roomId, version: room.version }
+      meta
     });
   });
 

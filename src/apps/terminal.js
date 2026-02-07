@@ -21,6 +21,10 @@ function normalizePath(cwd, rawPath = ".") {
   return `/${stack.join("/")}`;
 }
 
+function actorLabel(actor) {
+  return actor || "operator";
+}
+
 export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirectoryEntries, isContentVisible, state, saveState, completeObjective, notify }) {
   makeWindow("terminal", "Terminal", (content) => {
     content.classList.add("terminal");
@@ -34,26 +38,61 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       out.scrollTop = out.scrollHeight;
     }
 
-    function applyTime(hours, minutes) {
-      const now = new Date();
-      const simulated = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
-      state.driftMinutes = Math.round((simulated - now) / 60000);
-      if (hours === 3 && minutes === 11) {
-        state.unlocked.redactedLog = true;
-        completeObjective(state, "set_time_0311");
-        print("maintenance window active");
+    function addHistory(command, actor = state.playerId) {
+      if (!Array.isArray(state.terminalHistory)) state.terminalHistory = [];
+      state.terminalHistory.push({ command, actor: actorLabel(actor), timestamp: Date.now() });
+    }
+
+    function parseTerminalAction(cmdLine, actor = state.playerId) {
+      const [cmd, ...args] = cmdLine.split(/\s+/);
+      const timestamp = Date.now();
+      if (cmd === "unlock" && args[0] === "archive") {
+        return { type: "CMD_UNLOCK_ARCHIVE", actor, timestamp, commandLine: cmdLine };
       }
-      print("clock adjusted");
+      if (cmd === "set-time") {
+        if (!args[0]) return { parseError: "usage: set-time HH:MM" };
+        const [h, m] = args[0].split(":").map(Number);
+        if (!isValidTime(h, m)) return { parseError: "invalid time (use HH:MM 00-23:00-59)" };
+        return { type: "CMD_SET_TIME", actor, timestamp, commandLine: cmdLine, hours: h, minutes: m };
+      }
+      if (cmd === "recover" && args[0] === "--manifest") {
+        return { type: "CMD_RECOVER_MANIFEST", actor, timestamp, commandLine: cmdLine };
+      }
+      if (cmd === "strings") {
+        const path = normalizePath(cwd, args[0]);
+        return {
+          type: "CMD_STRINGS",
+          actor,
+          timestamp,
+          commandLine: cmdLine,
+          path,
+          decodedText: path === "/media/cam2_20030418.dat" ? getDynamicFile(path) : ""
+        };
+      }
+      return null;
+    }
+
+    function printHistory() {
+      const lines = state.terminalHistory.slice(-15).map((entry) => {
+        if (typeof entry === "string") return `[operator] ${entry}`;
+        return `[${actorLabel(entry.actor)}] ${entry.command}`;
+      });
+      print(lines.join("\n"));
     }
 
     function handle(cmdLine) {
       if (!cmdLine) return;
       const [cmd, ...args] = cmdLine.split(/\s+/);
-      state.terminalHistory.push(cmdLine);
+      const action = parseTerminalAction(cmdLine);
+      const isActionCommand = Boolean(action?.type);
+
+      if (!isActionCommand || state.sessionMode === "solo") {
+        addHistory(cmdLine);
+      }
 
       if (cmd === "help") print(files["/system/help/shell_help.txt"]);
       else if (cmd === "pwd") print(cwd);
-      else if (cmd === "history") print(state.terminalHistory.slice(-15).join("\n"));
+      else if (cmd === "history") printHistory();
       else if (cmd === "date") print(new Date(Date.now() + state.driftMinutes * 60_000).toString());
       else if (cmd === "ls") {
         const p = normalizePath(cwd, args[0]);
@@ -71,44 +110,21 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
         else {
           print(getDynamicFile(p) || "cat: file not found");
           incrementFileView(state, p);
-          if (p === "/logs/audit_redacted.log" && state.unlocked.redactedLog) completeObjective(state, "access_redacted_audit");
+          if (p === "/logs/audit_redacted.log" && state.unlocked.redactedLog) completeObjective({ type: "objective.complete", objectiveId: "access_redacted_audit" });
         }
       } else if (cmd === "clear") out.textContent = "";
-      else if (cmd === "unlock" && args[0] === "archive") {
-        if ((state.viewed["/home/operator/docs/continuity_overview.txt"] || 0) > 0) {
-          state.unlocked.archive = true;
-          completeObjective(state, "unlock_archive");
-          print("archive channel exposed");
-        } else print("unlock: required context missing");
-      } else if (cmd === "set-time") {
-        if (!args[0]) print("usage: set-time HH:MM");
-        else {
-          const [h, m] = args[0].split(":").map(Number);
-          if (!isValidTime(h, m)) print("invalid time (use HH:MM 00-23:00-59)");
-          else applyTime(h, m);
+      else if (action?.parseError) {
+        print(action.parseError);
+      } else if (isActionCommand) {
+        const result = completeObjective(action);
+        if (result?.accepted === false && state.sessionMode === "coop") {
+          print("queued for server confirmation...");
         }
-      } else if (cmd === "recover" && args[0] === "--manifest") {
-        const clock = new Date(Date.now() + state.driftMinutes * 60000);
-        if (clock.getHours() === 3 && clock.getMinutes() >= 11 && clock.getMinutes() <= 13) {
-          state.recoveredFiles = true;
-          completeObjective(state, "recover_manifest");
-          if (!fs["/home/operator/docs"].includes("postmortem.txt")) fs["/home/operator/docs"].push("postmortem.txt");
-          if (!fs["/home/operator/mail"].includes("draft_9.eml")) fs["/home/operator/mail"].push("draft_9.eml");
-          print("2 files restored from deleted manifest.");
-          notify?.("Manifest restored: 2 files recovered.");
-        } else print("recover: denied outside maintenance window");
-      } else if (cmd === "strings") {
-        const p = normalizePath(cwd, args[0]);
-        if (p === "/media/cam2_20030418.dat") {
-          state.unlocked.mediaReveal = true;
-          completeObjective(state, "decode_cam2");
-          print("extracting printable strings...");
-          print(getDynamicFile(p));
-        } else print("no printable strings found");
+        for (const line of result?.terminalLines || []) print(line);
       } else if (cmd === "whoami") print(state.bootCount > 2 ? "operator?" : "operator");
       else if (cmd === "reset-session") {
         clearState();
-        notify?.("Session state cleared. Reloading...");
+        notify?.("Session state cleared. Reloading...", { actor: actorLabel(state.playerId) });
         setTimeout(() => window.location.reload(), 250);
       } else print("command not found");
 

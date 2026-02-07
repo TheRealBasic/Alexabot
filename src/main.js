@@ -1,8 +1,9 @@
-import { applyProgressionFlags, clearState, completeObjective, getActiveObjectives, getProgressSignature, loadState, saveState } from "./state.js";
+import { applyProgressionFlags, clearState, getActiveObjectives, getProgressSignature, loadState, saveState } from "./state.js";
 import { fs, files, getDirectoryEntries, getDynamicFile as getDynamicFileBase, isContentVisible, rehydrateContentFromState } from "./content.js";
 import { createWindowManager } from "./windowManager.js";
 import { runBoot } from "./boot.js";
 import { createMultiplayerClient, applyIncrementalPatch } from "./multiplayer/client.js";
+import { applyAction } from "./progression/reducer.js";
 import {
   evaluateBehaviorReactions,
   getAppGlitchStyle,
@@ -46,10 +47,10 @@ const notificationCenter = document.getElementById("notificationCenter");
 
 let desktopInitialized = false;
 
-const notify = (message) => {
+const notify = (message, { actor } = {}) => {
   const toast = document.createElement("div");
   toast.className = "toast";
-  toast.textContent = message;
+  toast.textContent = actor ? `[${actor}] ${message}` : message;
   notificationCenter.appendChild(toast);
   setTimeout(() => toast.remove(), 2800);
 };
@@ -96,6 +97,19 @@ const multiplayer = sessionMode === "coop"
       applyAuthoritativeUpdate(patch);
       rehydrateContentFromState(state);
     },
+    onAction: (action) => {
+      const result = applyAction(state, action);
+      for (const note of result.notifications || []) notify(note.message, { actor: note.actor });
+      rehydrateContentFromState(state);
+      evaluateBehaviorReactions({ state, fs, saveState: persist });
+      presentation.handleStateTransition(previousSnapshot, state);
+      previousSnapshot = JSON.parse(JSON.stringify(state));
+      const signature = getProgressSignature(state);
+      if (signature !== lastProgressSignature) {
+        lastProgressSignature = signature;
+        renderObjectivePanel();
+      }
+    },
     onStatus: (status) => {
       if (desktopInitialized) notify(`coop ${status}`);
     }
@@ -109,12 +123,12 @@ const persist = () => {
 const dispatchAction = (action) => {
   if (state.sessionMode === "coop") {
     multiplayer?.sendAction(action);
-    return;
+    return { accepted: false, terminalLines: [] };
   }
 
-  if (action.type === "objective.complete") {
-    completeObjective(state, action.objectiveId);
-  }
+  const result = applyAction(state, action);
+  for (const note of result.notifications || []) notify(note.message, { actor: note.actor });
+  return { accepted: true, ...result };
 };
 
 const save = () => {
@@ -157,7 +171,7 @@ const appContext = {
   files,
   state,
   saveState: save,
-  completeObjective: (objectiveId) => dispatchAction({ type: "objective.complete", objectiveId }),
+  completeObjective: (action) => dispatchAction(action),
   sendAction: (action) => dispatchAction(action),
   notify,
   getDynamicFile,

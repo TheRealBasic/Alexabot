@@ -16,7 +16,8 @@ function summarizeTerminalHistory(state) {
   const repeatedLines = {};
 
   for (const line of lines) {
-    const normalized = String(line || "").trim().toLowerCase();
+    const commandLine = typeof line === "string" ? line : line?.command;
+    const normalized = String(commandLine || "").trim().toLowerCase();
     if (!normalized) continue;
     const cmd = normalized.split(/\s+/)[0];
     counts[cmd] = (counts[cmd] || 0) + 1;
