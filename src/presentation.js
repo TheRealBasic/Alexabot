@@ -1,5 +1,5 @@
 export function createPresentationController({ state, desktopRoot, taskbar, overlay }) {
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  let audioCtx;
   let humNode;
   let humLfo;
   let locked = false;
@@ -10,7 +10,18 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
     finalReveal: false
   });
 
+  function ensureAudioContext() {
+    if (audioCtx) return true;
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function pulseTone({ freq = 320, duration = 0.12, type = "square", gain = 0.03 } = {}) {
+    if (!ensureAudioContext()) return;
     const t = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     const amp = audioCtx.createGain();
@@ -25,7 +36,7 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
   }
 
   function ensureHum() {
-    if (humNode) return;
+    if (humNode || !ensureAudioContext()) return;
     humNode = audioCtx.createOscillator();
     const humGain = audioCtx.createGain();
     humLfo = audioCtx.createOscillator();
@@ -46,6 +57,7 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
   }
 
   function startAmbient() {
+    if (!ensureAudioContext()) return;
     if (audioCtx.state === "suspended") audioCtx.resume();
     ensureHum();
   }
@@ -117,10 +129,7 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
       cinematicBeat({
         text: "FINAL REVEAL // OBSERVER AND ARCHIVE NOW CO-RESIDENT",
         lockMs: 3000,
-        stinger: 120,
-        flickerMs: 1400,
-        scanlineMs: 2400,
-        warningMs: 2200
+        stinger: 128
       });
     }
   }

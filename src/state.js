@@ -14,16 +14,7 @@ export const defaultState = {
   lastBootMessage: "",
   memoryFailures: 0,
   driftMinutes: 0,
-  unlocked: {
-    archive: false,
-    redactedLog: false,
-    mediaMetadata: false,
-    mediaPartial: false,
-    mediaReveal: false,
-    settingsSynced: false,
-    maintenanceProfile: false,
-    witnessMap: false
-  },
+  unlocked: { archive: false, redactedLog: false, mediaReveal: false },
   recoveredFiles: false,
   terminalHistory: [],
   notesDraft: "",
@@ -64,6 +55,17 @@ export function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+export function clearState() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+export function incrementFileView(state, path) {
+  if (!state.viewed || typeof state.viewed !== "object") {
+    state.viewed = {};
+  }
+  state.viewed[path] = (state.viewed[path] || 0) + 1;
+}
+
 export function completeObjective(state, objectiveId) {
   if (!state.completedObjectives.includes(objectiveId)) {
     state.completedObjectives.push(objectiveId);
@@ -75,6 +77,11 @@ export function getActiveObjectives(state) {
   return state.objectives.filter((objective) => {
     return objective.chapter <= state.chapter && !state.completedObjectives.includes(objective.id);
   });
+}
+
+export function getProgressSignature(state) {
+  const completed = [...(state.completedObjectives || [])].sort().join("|");
+  return `${state.chapter}:${completed}`;
 }
 
 function updateChapter(state) {
