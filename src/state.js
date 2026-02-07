@@ -42,12 +42,21 @@ export const defaultState = {
     syntheticCorrespondence: false,
     appGlitch: false
   },
+  teamTrustScore: 0,
+  playerDivergence: {},
+  recentConflicts: [],
   cinematicSeen: {
     archiveUnlock: false,
     maintenance311: false,
     finalReveal: false
   }
 };
+
+function ensureTrustState(state) {
+  if (typeof state.teamTrustScore !== "number") state.teamTrustScore = 0;
+  if (!state.playerDivergence || typeof state.playerDivergence !== "object") state.playerDivergence = {};
+  if (!Array.isArray(state.recentConflicts)) state.recentConflicts = [];
+}
 
 export function loadState() {
   try {
@@ -102,17 +111,27 @@ export function getProgressSignature(state) {
   return `${state.chapter}:${completed}`;
 }
 
+export function refreshChapterFromState(state) {
+  updateChapter(state);
+}
+
 function updateChapter(state) {
   const chapterOneGoals = ["unlock_archive", "set_time_0311"];
   const chapterTwoGoals = ["recover_manifest", "decode_cam2", "access_redacted_audit"];
 
   const hasCompleted = (id) => state.completedObjectives.includes(id);
+  const trustScore = Number(state.teamTrustScore || 0);
+  const conflictCount = Array.isArray(state.recentConflicts) ? state.recentConflicts.length : 0;
 
   if (chapterOneGoals.every(hasCompleted)) {
     state.chapter = Math.max(state.chapter, 2);
   }
   if (chapterTwoGoals.every(hasCompleted)) {
-    state.chapter = Math.max(state.chapter, 3);
+    const highTrustRoute = trustScore >= 2;
+    const lowTrustRoute = trustScore <= -2 && conflictCount >= 2;
+    if (highTrustRoute || lowTrustRoute) {
+      state.chapter = Math.max(state.chapter, 3);
+    }
   }
 }
 
@@ -138,6 +157,7 @@ export function applyProgressionFlags(state) {
   if (!state.chapter) {
     state.chapter = 1;
   }
+  ensureTrustState(state);
   updateChapter(state);
   state.bootCount += 1;
   state.driftMinutes += (Math.random() < 0.4 ? (Math.random() < 0.5 ? -1 : 1) : 0);

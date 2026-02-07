@@ -7,7 +7,10 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
   const cinematicSeen = state.cinematicSeen || (state.cinematicSeen = {
     archiveUnlock: false,
     maintenance311: false,
-    finalReveal: false
+    finalReveal: false,
+    trustLock: false,
+    trustSplit: false,
+    trustCritical: false
   });
 
   function ensureAudioContext() {
@@ -130,6 +133,39 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
         text: "FINAL REVEAL // OBSERVER AND ARCHIVE NOW CO-RESIDENT",
         lockMs: 3000,
         stinger: 128
+      });
+    }
+
+    const prevTrust = Number(prev.teamTrustScore || 0);
+    const nextTrust = Number(next.teamTrustScore || 0);
+    const conflictDelta = (next.recentConflicts?.length || 0) - (prev.recentConflicts?.length || 0);
+
+    if (nextTrust >= 3 && prevTrust < 3 && !cinematicSeen.trustLock) {
+      cinematicSeen.trustLock = true;
+      cinematicBeat({
+        text: "TEAM LOCK // SYNCHRONY ACCEPTED",
+        lockMs: 1800,
+        stinger: 260
+      });
+    }
+
+    if ((conflictDelta > 0 || nextTrust <= -2) && !cinematicSeen.trustSplit) {
+      cinematicSeen.trustSplit = true;
+      cinematicBeat({
+        text: "SPLIT WARNING // COMMAND DIVERGENCE RISING",
+        lockMs: 2000,
+        warningMs: 2100,
+        stinger: 155
+      });
+    }
+
+    if (nextTrust <= -4 && prevTrust > -4 && !cinematicSeen.trustCritical) {
+      cinematicSeen.trustCritical = true;
+      cinematicBeat({
+        text: "CRITICAL TRUST CASCADE // FALLBACK ROUTE FORCED",
+        lockMs: 2600,
+        warningMs: 2500,
+        stinger: 96
       });
     }
   }
