@@ -1,4 +1,4 @@
-import { applyProgressionFlags, clearState, getActiveObjectives, getProgressSignature, loadState, saveState } from "./state.js";
+import { applyProgressionFlags, clearState, getActiveObjectives, getProgressSignature, loadState, refreshChapterFromState, saveState } from "./state.js";
 import { fs, files, getDirectoryEntries, getDynamicFile as getDynamicFileBase, isContentVisible, rehydrateContentFromState } from "./content.js";
 import { createWindowManager } from "./windowManager.js";
 import { runBoot } from "./boot.js";
@@ -112,6 +112,7 @@ const multiplayer = sessionMode === "coop"
     },
     onAction: (action) => {
       const result = applyAction(state, action);
+      refreshChapterFromState(state);
       for (const note of result.notifications || []) notify(note.message, { actor: note.actor });
       rehydrateContentFromState(state);
       evaluateBehaviorReactions({ state, fs, saveState: persist });
@@ -140,6 +141,7 @@ const dispatchAction = (action) => {
   }
 
   const result = applyAction(state, action);
+  refreshChapterFromState(state);
   for (const note of result.notifications || []) notify(note.message, { actor: note.actor });
   return { accepted: true, ...result };
 };
@@ -220,6 +222,7 @@ function mountObjectivePanel() {
     panel.innerHTML = `
       <div class="objective-title">${getChapterLabel(state.chapter)}</div>
       <div class="objective-subtitle">Role: ${state.activeRole}</div>
+      <div class="notice">Team Trust: ${state.teamTrustScore || 0}</div>
       <div class="notice">Teammate (${teammateRole}): ${teammateId}</div>
       <div class="notice">${teammateActivity ? `Last teammate command: ${teammateActivity.command}` : "No teammate activity yet."}</div>
       <div class="notice">${relayCue}</div>

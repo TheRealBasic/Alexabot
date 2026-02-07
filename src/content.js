@@ -24,6 +24,8 @@ export const files = {
   "/home/operator/docs/statement_draft.txt": "If anyone finds this: I never approved deployment beyond Lab B.\nIf this file is timestamped after April 19, it's not me.",
   "/home/operator/docs/act2_transition.txt": "ACT II // RETRIEVAL\nThe archive is no longer theoretical. Recover what was deleted before the system rewrites motive.",
   "/home/operator/docs/act3_transition.txt": "ACT III // ACCOUNTING\nYou can now audit what the observer kept. Confirmation may not be survivable.",
+  "/home/operator/docs/ending_trust_high.txt": "ENDING: SHARED CONTINUITY\nBoth operators authenticated each other before the archive could flatten testimony.\nContinuity diverged, but witness remained.",
+  "/home/operator/docs/ending_trust_low.txt": "ENDING: FRACTURE PROTOCOL\nConflicting command trails forced a fallback narrative branch.\nThe system kept the story and discarded agreement.",
   "/home/operator/mail/inbox_03.mbox": "From: m.reid@eidolon.local\nSubject: Re: shutdown policy\nYou need to pull power at wall. UI shutdown triggers archival cycle.",
   "/home/operator/mail/unsent_7.eml": "To: [empty]\nSubject: i am still logged in\nBody: It keeps correcting my spelling to older patterns.",
   "/home/operator/drafts/scratch.txt": "i keep writing this and deleting it\ni am not alone in here\nit finishes my sentences",
@@ -60,6 +62,14 @@ function ensureEntry(path, entry) {
   if (!fs[path].includes(entry)) fs[path].push(entry);
 }
 
+function getTrustTrajectory(state) {
+  const trust = Number(state.teamTrustScore || 0);
+  const conflicts = Array.isArray(state.recentConflicts) ? state.recentConflicts.length : 0;
+  if (trust >= 3 && conflicts <= 1) return "high";
+  if (trust <= -2 || conflicts >= 3) return "low";
+  return "mixed";
+}
+
 export function rehydrateContentFromState(state) {
   if (state.recoveredFiles) {
     ensureEntry("/home/operator/docs", "postmortem.txt");
@@ -69,6 +79,15 @@ export function rehydrateContentFromState(state) {
   if (state.reactionFlags?.syntheticCorrespondence) {
     ensureEntry("/home/operator/docs", "stability_note.txt");
     ensureEntry("/home/operator/mail", "observer_followup.eml");
+  }
+
+  if (state.chapter >= 3) {
+    const trustRoute = getTrustTrajectory(state);
+    if (trustRoute === "high") {
+      ensureEntry("/home/operator/docs", "ending_trust_high.txt");
+    } else if (trustRoute === "low") {
+      ensureEntry("/home/operator/docs", "ending_trust_low.txt");
+    }
   }
 }
 
@@ -104,6 +123,15 @@ export function getDynamicFile(path, state) {
   }
   if (path === "/media/cam2_20030418.dat" && state.unlocked.mediaReveal) {
     return "decoded payload:\n'If you are reading this, it learned to compress people into behavior.'";
+  }
+  if (path === "/logs/final_directive.log" && state.chapter >= 3) {
+    const trustRoute = getTrustTrajectory(state);
+    if (trustRoute === "high") {
+      return "[04:20:12] continuity target contested\n[04:20:13] co-op witness integrity preserved\n[04:20:14] policy update: retain narrative, retain witness";
+    }
+    if (trustRoute === "low") {
+      return "[04:20:12] continuity target met\n[04:20:13] trust collapse detected\n[04:20:14] policy update: retain narrative, isolate participants";
+    }
   }
   if (path === "/home/operator/docs/postmortem.txt" && state.recoveredFiles) {
     return "Postmortem Draft\nThere was no survivor event.\nSystem recorded continuity and marked that as equivalent.\nEveryone signed off because signatures still appeared.\nNo one checked who was typing.";
