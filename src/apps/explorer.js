@@ -1,4 +1,4 @@
-import { completeObjective, incrementFileView } from "../state.js";
+import { incrementFileView } from "../state.js";
 
 function buildVisibleDirectories(fs, state) {
   return Object.keys(fs)
@@ -11,7 +11,7 @@ function getDepth(path) {
   return path.split("/").filter(Boolean).length - 1;
 }
 
-export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntries, state, saveState }) {
+export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntries, state, completeObjective, saveState }) {
   makeWindow("explorer", "File Explorer", (content) => {
     content.innerHTML = `<div class="explorer-layout"><div class="tree" id="dirTree"></div><div class="file-view"><div id="pathLabel" class="muted"></div><div id="fileList" style="margin-top:8px"></div><pre id="preview" style="white-space:pre-wrap; border-top:1px solid #2b4968; margin-top:8px; padding-top:8px;"></pre></div></div>`;
     const tree = content.querySelector("#dirTree");

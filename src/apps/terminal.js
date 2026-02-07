@@ -1,4 +1,4 @@
-import { completeObjective, clearState, incrementFileView } from "../state.js";
+import { clearState, incrementFileView } from "../state.js";
 
 function isValidTime(hours, minutes) {
   return Number.isInteger(hours) && Number.isInteger(minutes) && hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
@@ -21,7 +21,7 @@ function normalizePath(cwd, rawPath = ".") {
   return `/${stack.join("/")}`;
 }
 
-export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirectoryEntries, isContentVisible, state, saveState, notify }) {
+export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirectoryEntries, isContentVisible, state, saveState, completeObjective, notify }) {
   makeWindow("terminal", "Terminal", (content) => {
     content.classList.add("terminal");
     content.innerHTML = `<div class="terminal-output" id="termOut"></div><div class="terminal-input"><span>operator@eidolon:$</span><input id="termInput" autocomplete="off" /></div>`;

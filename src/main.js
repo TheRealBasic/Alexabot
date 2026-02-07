@@ -1,7 +1,8 @@
-import { applyProgressionFlags, clearState, getActiveObjectives, getProgressSignature, loadState, saveState } from "./state.js";
+import { applyProgressionFlags, clearState, completeObjective, getActiveObjectives, getProgressSignature, loadState, saveState } from "./state.js";
 import { fs, files, getDirectoryEntries, getDynamicFile as getDynamicFileBase, isContentVisible, rehydrateContentFromState } from "./content.js";
 import { createWindowManager } from "./windowManager.js";
 import { runBoot } from "./boot.js";
+import { createMultiplayerClient, applyIncrementalPatch } from "./multiplayer/client.js";
 import {
   evaluateBehaviorReactions,
   getAppGlitchStyle,
@@ -15,7 +16,15 @@ import { openSettings } from "./apps/settings.js";
 import { openHelp } from "./apps/help.js";
 import { createPresentationController } from "./presentation.js";
 
+const params = new URLSearchParams(window.location.search);
+const roomId = params.get("room");
+const playerId = params.get("player") || `p-${Math.floor(Math.random() * 1e6).toString(36)}`;
+const sessionMode = roomId ? "coop" : "solo";
+
 const state = applyProgressionFlags(loadState());
+state.sessionMode = sessionMode;
+state.roomId = roomId;
+state.playerId = playerId;
 rehydrateContentFromState(state);
 
 const bootText = document.getElementById("bootText");
@@ -52,23 +61,86 @@ const presentation = createPresentationController({
   overlay: cinematicOverlay
 });
 
-const persist = () => saveState(state);
 let previousSnapshot = JSON.parse(JSON.stringify(state));
 let lastProgressSignature = getProgressSignature(state);
 let renderObjectivePanel = () => {};
 
-const save = () => {
-  const prev = previousSnapshot;
-  evaluateBehaviorReactions({ state, fs, saveState: persist });
+const applyAuthoritativeUpdate = (patch, isSnapshot = false) => {
+  const prev = JSON.parse(JSON.stringify(state));
+  if (isSnapshot) {
+    for (const key of Object.keys(state)) delete state[key];
+    Object.assign(state, patch);
+  } else {
+    applyIncrementalPatch(state, patch);
+  }
   rehydrateContentFromState(state);
   presentation.handleStateTransition(prev, state);
-  persist();
   previousSnapshot = JSON.parse(JSON.stringify(state));
-
   const signature = getProgressSignature(state);
   if (signature !== lastProgressSignature) {
     lastProgressSignature = signature;
     renderObjectivePanel();
+  }
+};
+
+const multiplayer = sessionMode === "coop"
+  ? createMultiplayerClient({
+    roomId,
+    playerId,
+    url: params.get("ws") || "ws://localhost:8787",
+    onSnapshot: (snapshot) => {
+      applyAuthoritativeUpdate(snapshot, true);
+      rehydrateContentFromState(state);
+    },
+    onPatch: (patch) => {
+      applyAuthoritativeUpdate(patch);
+      rehydrateContentFromState(state);
+    },
+    onStatus: (status) => {
+      if (desktopInitialized) notify(`coop ${status}`);
+    }
+  })
+  : null;
+
+const persist = () => {
+  if (state.sessionMode === "solo") saveState(state);
+};
+
+const dispatchAction = (action) => {
+  if (state.sessionMode === "coop") {
+    multiplayer?.sendAction(action);
+    return;
+  }
+
+  if (action.type === "objective.complete") {
+    completeObjective(state, action.objectiveId);
+  }
+};
+
+const save = () => {
+  evaluateBehaviorReactions({ state, fs, saveState: persist });
+  rehydrateContentFromState(state);
+
+  if (state.sessionMode === "solo") {
+    const prev = previousSnapshot;
+    presentation.handleStateTransition(prev, state);
+    persist();
+    previousSnapshot = JSON.parse(JSON.stringify(state));
+
+    const signature = getProgressSignature(state);
+    if (signature !== lastProgressSignature) {
+      lastProgressSignature = signature;
+      renderObjectivePanel();
+    }
+    return;
+  }
+
+  const patch = {};
+  for (const key of Object.keys(state)) {
+    if (JSON.stringify(previousSnapshot[key]) !== JSON.stringify(state[key])) patch[key] = state[key];
+  }
+  if (Object.keys(patch).length > 0) {
+    multiplayer?.sendAction({ type: "state.patch", patch });
   }
 };
 
@@ -85,6 +157,8 @@ const appContext = {
   files,
   state,
   saveState: save,
+  completeObjective: (objectiveId) => dispatchAction({ type: "objective.complete", objectiveId }),
+  sendAction: (action) => dispatchAction(action),
   notify,
   getDynamicFile,
   getDirectoryEntries,
@@ -172,6 +246,10 @@ function initDesktop() {
   reset.type = "button";
   reset.textContent = "Reset Session";
   reset.onclick = () => {
+    if (state.sessionMode === "coop") {
+      notify("Use a new room code to start a fresh co-op session.");
+      return;
+    }
     const ok = window.confirm("Clear local session data and restart?");
     if (!ok) return;
     clearState();
