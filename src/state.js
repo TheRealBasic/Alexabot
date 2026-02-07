@@ -21,6 +21,9 @@ export const defaultState = {
   viewed: {},
   complianceScore: 0,
   sessionId: Math.floor(Math.random() * 1e6),
+  sessionMode: "solo",
+  playerId: "local-player",
+  roomId: null,
   reactionFlags: {
     alteredBootLines: false,
     trayWarning: false,
