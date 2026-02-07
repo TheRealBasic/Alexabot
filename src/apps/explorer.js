@@ -46,7 +46,12 @@ export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntri
           }
 
           if (full === "/media/cam2_20030418.dat" && !state.unlocked.mediaReveal) {
-            preview.innerHTML = "Binary data unreadable. Try terminal command: strings /media/cam2_20030418.dat";
+            preview.innerHTML = "Binary data unreadable. Try staged decode in Media Player or terminal strings extraction.";
+            return;
+          }
+
+          if (full === "/logs/chimera_clearance.log" && !state.unlocked.witnessMap) {
+            preview.innerHTML = "ACCESS PENDING\nHint: combine triangulation protocol (Explorer) + recovery/decode history (Terminal/Media) + 03:11 sync (Settings), then compile in Help.";
             return;
           }
 
