@@ -8,7 +8,7 @@ function applyIncrementalPatch(state, patch = {}) {
   }
 }
 
-export function createMultiplayerClient({ roomId, playerId, url, onSnapshot, onPatch, onStatus }) {
+export function createMultiplayerClient({ roomId, playerId, url, onSnapshot, onPatch, onAction, onStatus }) {
   let ws;
   let reconnectTimer;
   let closed = false;
@@ -30,6 +30,7 @@ export function createMultiplayerClient({ roomId, playerId, url, onSnapshot, onP
       const message = JSON.parse(event.data);
       if (message.type === "snapshot") onSnapshot?.(message.state, message.meta || {});
       if (message.type === "patch") onPatch?.(message.patch, message.meta || {});
+      if (message.type === "action.applied") onAction?.(message.action, message.meta || {});
     };
 
     ws.onclose = () => {
