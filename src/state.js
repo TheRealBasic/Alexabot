@@ -14,7 +14,16 @@ export const defaultState = {
   lastBootMessage: "",
   memoryFailures: 0,
   driftMinutes: 0,
-  unlocked: { archive: false, redactedLog: false, mediaReveal: false },
+  unlocked: {
+    archive: false,
+    redactedLog: false,
+    mediaMetadata: false,
+    mediaPartial: false,
+    mediaReveal: false,
+    settingsSynced: false,
+    maintenanceProfile: false,
+    witnessMap: false
+  },
   recoveredFiles: false,
   terminalHistory: [],
   notesDraft: "",
