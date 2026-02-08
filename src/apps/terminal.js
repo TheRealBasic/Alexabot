@@ -2,6 +2,7 @@ import { clearState, incrementFileView, appendManifestationEvent, clearSimulatio
 import { consumeManifestation, isManifestationActive } from "../progression/reactions.js";
 import { runScenario, stepScenario, forkBranch, replaySeed } from "../simulation/engine.js";
 import { ensureSimulationState, serializeSimulationSnapshot } from "../simulation/serializer.js";
+import { getServiceStatusTable, getServiceTrace, restartService } from "../systems/simulator.js";
 import { listScenarioDefinitions } from "../simulation/scenarios.js";
 
 function isValidTime(hours, minutes) {
@@ -31,7 +32,7 @@ function actorLabel(actor) {
 
 function canRunCommand(role, cmd) {
   if (role === "operator") return true;
-  const observerAllowed = new Set(["help", "pwd", "history", "date", "ls", "cd", "cat", "clear", "whoami", "anomaly-hint", "ping", "ps", "service", "pkg", "appinfo", "net", "tail", "top-lite", "sim"]);
+  const observerAllowed = new Set(["help", "pwd", "history", "date", "ls", "cd", "cat", "clear", "whoami", "anomaly-hint", "ping", "ps", "service", "svc", "pkg", "appinfo", "net", "tail", "top-lite", "sim"]);
   return observerAllowed.has(cmd);
 }
 
@@ -276,18 +277,21 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
     }
 
     function serviceStatus(name = "") {
-      const map = {
-        "archive-daemon": "state=degraded; queued repairs=2",
-        "rtc-sync": "state=active; drift_monitor=enabled",
-        "relay-link": "state=active; heartbeat=ok",
-        "audit-indexer": "state=idle; backlog=3"
-      };
+      const rows = getServiceStatusTable(state);
       if (!name) {
-        print(Object.entries(map).map(([k,v]) => `${k}: ${v}`).join("\n"));
+        const lines = rows.map((row) => `${row.name}: status=${row.status}; health=${row.health.toFixed(2)}; drift=${row.drift.toFixed(2)}; anomalies=${row.anomaly ? "yes" : "no"}; restarts=${row.restartCount}`);
+        print(lines.join("\n"));
         return;
       }
-      print(map[name] ? `${name}: ${map[name]}` : "service: unknown unit");
+      const row = rows.find((entry) => entry.name === name);
+      if (!row) {
+        print("service: unknown unit");
+        return;
+      }
+      print(`${row.name}: status=${row.status}; health=${row.health.toFixed(2)}; drift=${row.drift.toFixed(2)}; deps=${row.dependencies.join(",") || "none"}`);
     }
+
+
 
     function handle(cmdLine) {
       if (!cmdLine) return;
@@ -346,11 +350,19 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
         }
       } else if (cmd === "ps" || cmd === "top-lite") {
         printProcessTable();
-      } else if (cmd === "service" && args[0] === "status") {
+      } else if ((cmd === "service" || cmd === "svc") && args[0] === "status") {
         serviceStatus(args[1]);
-      } else if (cmd === "service" && args[0] === "restart") {
+      } else if ((cmd === "service" || cmd === "svc") && args[0] === "restart") {
         if (role !== "operator") print("service restart: restricted to operator");
-        else print(`service ${args[1] || "(missing)"}: restart queued`);
+        else {
+          const result = restartService(state, args[1] || "", "terminal");
+          if (!result.ok) print(result.message);
+          else print(`service ${args[1]}: restart completed`);
+        }
+      } else if ((cmd === "service" || cmd === "svc") && args[0] === "trace") {
+        const trace = getServiceTrace(state, args[1] || "");
+        if (!trace.ok) print(trace.message);
+        else print(trace.lines.join("\n"));
       } else if (cmd === "pkg" && args[0] === "list") {
         print(getDynamicFile("/var/lib/pkg/status") || "pkg database unavailable");
       } else if (cmd === "pkg" && args[0] === "history") {

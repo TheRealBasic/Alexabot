@@ -1,4 +1,5 @@
 import { createSimulationState, ensureSimulationState } from "./simulation/serializer.js";
+import { createSystemSimulationState, ensureSystemSimulationState } from "./systems/services.js";
 
 export const STORAGE_KEY = "eidolon_state_v1";
 
@@ -88,7 +89,8 @@ export const defaultState = {
   panicFragment: "",
   pendingRecoveryNotice: false,
   lifecycleHistory: [],
-  simulationState: createSimulationState()
+  simulationState: createSimulationState(),
+  systemSimulationState: createSystemSimulationState()
 };
 
 function ensureTrustState(state) {
@@ -145,6 +147,7 @@ function ensureProfileState(state) {
 
 function ensureSimulationSubstate(state) {
   ensureSimulationState(state);
+  ensureSystemSimulationState(state);
 }
 
 export function loadState() {
@@ -169,6 +172,10 @@ export function loadState() {
         simulationState: {
           ...createSimulationState(),
           ...(parsed.simulationState || {})
+        },
+        systemSimulationState: {
+          ...createSystemSimulationState(),
+          ...(parsed.systemSimulationState || {})
         }
       }
       : { ...defaultState };
