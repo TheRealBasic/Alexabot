@@ -8,7 +8,7 @@ function applyIncrementalPatch(state, patch = {}) {
   }
 }
 
-export function createMultiplayerClient({ roomId, playerId, url, onSnapshot, onPatch, onAction, onStatus }) {
+export function createMultiplayerClient({ roomId, playerId, authToken, url, onSnapshot, onPatch, onAction, onStatus }) {
   let ws;
   let reconnectTimer;
   let closed = false;
@@ -22,7 +22,7 @@ export function createMultiplayerClient({ roomId, playerId, url, onSnapshot, onP
 
     ws.onopen = () => {
       notifyStatus("connected");
-      ws.send(JSON.stringify({ type: "join", roomId, playerId }));
+      ws.send(JSON.stringify({ type: "join", roomId, playerId, token: authToken }));
       ws.send(JSON.stringify({ type: "snapshot.request", roomId, playerId }));
     };
 
@@ -33,7 +33,12 @@ export function createMultiplayerClient({ roomId, playerId, url, onSnapshot, onP
       if (message.type === "action.applied") onAction?.(message.action, message.meta || {});
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
+      if (event?.code === 4001) {
+        notifyStatus("unauthorized");
+        closed = true;
+        return;
+      }
       notifyStatus("disconnected");
       if (closed) return;
       reconnectTimer = setTimeout(connect, 1200);
@@ -47,7 +52,7 @@ export function createMultiplayerClient({ roomId, playerId, url, onSnapshot, onP
   return {
     sendAction(action) {
       if (!ws || ws.readyState !== WebSocket.OPEN) return false;
-      ws.send(JSON.stringify({ type: "action", roomId, playerId, action }));
+      ws.send(JSON.stringify({ type: "action", roomId, action }));
       return true;
     },
     close() {
