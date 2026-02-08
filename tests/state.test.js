@@ -48,3 +48,16 @@ test('applyProgressionFlags restores ai memory defaults', () => {
   assert.equal(state.aiContradictionCount, 0);
   assert.deepEqual(state.aiLastTopics, []);
 });
+
+
+test('applyProgressionFlags restores manifestation defaults', () => {
+  const state = { bootCount: 0, driftMinutes: 0 };
+  applyProgressionFlags(state);
+
+  assert.deepEqual(state.manifestationState, {
+    lastTriggeredAt: {},
+    activeUntil: {},
+    delivered: {},
+    pendingClockLine: null
+  });
+});

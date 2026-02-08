@@ -50,6 +50,12 @@ export const defaultState = {
     syntheticCorrespondence: false,
     appGlitch: false
   },
+  manifestationState: {
+    lastTriggeredAt: {},
+    activeUntil: {},
+    delivered: {},
+    pendingClockLine: null
+  },
   teamTrustScore: 0,
   playerDivergence: {},
   recentConflicts: [],
@@ -77,6 +83,24 @@ function ensureAiMemoryState(state) {
   if (typeof state.aiTrustInPlayer !== "number") state.aiTrustInPlayer = 0;
   if (typeof state.aiContradictionCount !== "number") state.aiContradictionCount = 0;
   if (!Array.isArray(state.aiLastTopics)) state.aiLastTopics = [];
+}
+
+function ensureManifestationState(state) {
+  if (!state.manifestationState || typeof state.manifestationState !== "object") {
+    state.manifestationState = { ...defaultState.manifestationState };
+  }
+  if (!state.manifestationState.lastTriggeredAt || typeof state.manifestationState.lastTriggeredAt !== "object") {
+    state.manifestationState.lastTriggeredAt = {};
+  }
+  if (!state.manifestationState.activeUntil || typeof state.manifestationState.activeUntil !== "object") {
+    state.manifestationState.activeUntil = {};
+  }
+  if (!state.manifestationState.delivered || typeof state.manifestationState.delivered !== "object") {
+    state.manifestationState.delivered = {};
+  }
+  if (typeof state.manifestationState.pendingClockLine !== "string") {
+    state.manifestationState.pendingClockLine = null;
+  }
 }
 
 export function loadState() {
@@ -130,6 +154,11 @@ export function appendForensicTrace(state, category, detail, actor = state.activ
 export function appendTerminalEvent(state, command, actor = state.activeRole || "operator") {
   if (!Array.isArray(state.terminalHistory)) state.terminalHistory = [];
   state.terminalHistory.push({ command, actor, timestamp: Date.now() });
+}
+
+export function appendManifestationEvent(state, triggerId, detail, actor = "system") {
+  appendForensicTrace(state, "manifestation", `${triggerId}: ${detail}`, actor);
+  appendTerminalEvent(state, `manifestation:${triggerId} ${detail}`, actor);
 }
 
 export function completeObjective(state, objectiveId) {
@@ -216,6 +245,7 @@ export function applyProgressionFlags(state) {
   }
   ensureTrustState(state);
   ensureAiMemoryState(state);
+  ensureManifestationState(state);
   updateChapter(state);
   state.bootCount += 1;
   state.driftMinutes += (Math.random() < 0.4 ? (Math.random() < 0.5 ? -1 : 1) : 0);
