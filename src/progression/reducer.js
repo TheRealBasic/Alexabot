@@ -169,7 +169,7 @@ export function applyAction(state, action = {}, options = {}) {
     }
     target.relaySignal.resolvedBy = getActorName(action.actor);
     completeObjective(target, "operator_execute_relay");
-    output.terminalLines.push("relay handshake accepted");
+    output.terminalLines.push("relay handshake accepted: witness chain preserved");
     output.notifications.push({ actor: getActorName(action.actor), message: "Operator executed observer relay in time." });
     assessTrustShift(target, action, output, options);
     return options.projectionMode ? { ...output, projectionState: target } : output;
@@ -179,9 +179,9 @@ export function applyAction(state, action = {}, options = {}) {
     if ((target.viewed?.["/home/operator/docs/continuity_overview.txt"] || 0) > 0) {
       target.unlocked.archive = true;
       completeObjective(target, "unlock_archive");
-      output.terminalLines.push("archive channel exposed");
+      output.terminalLines.push("archive route exposed: continuity gate partially lifted");
     } else {
-      output.terminalLines.push("unlock: required context missing");
+      output.terminalLines.push("unlock: required context missing (read continuity clues first)");
     }
     assessTrustShift(target, action, output, options);
     return options.projectionMode ? { ...output, projectionState: target } : output;
@@ -194,9 +194,9 @@ export function applyAction(state, action = {}, options = {}) {
     if (action.hours === 3 && action.minutes === 11) {
       target.unlocked.redactedLog = true;
       completeObjective(target, "set_time_0311");
-      output.terminalLines.push("maintenance window active");
+      output.terminalLines.push("maintenance window active at 03:11: retrieval boundary confirmed");
     }
-    output.terminalLines.push("clock adjusted");
+    output.terminalLines.push("clock adjusted: timeline drift recalculated");
     assessTrustShift(target, action, output, options);
     return options.projectionMode ? { ...output, projectionState: target } : output;
   }
@@ -206,13 +206,13 @@ export function applyAction(state, action = {}, options = {}) {
     if (clock.getHours() === 3 && clock.getMinutes() >= 11 && clock.getMinutes() <= 13) {
       target.recoveredFiles = true;
       completeObjective(target, "recover_manifest");
-      output.terminalLines.push("2 files restored from deleted manifest.");
+      output.terminalLines.push("2 files restored from deleted manifest: suppressed evidence reinstated.");
       output.notifications.push({
         actor: getActorName(action.actor),
         message: "Manifest restored: 2 files recovered."
       });
     } else {
-      output.terminalLines.push("recover: denied outside maintenance window");
+      output.terminalLines.push("recover: denied outside maintenance window (03:11-03:13 required)");
     }
     return options.projectionMode ? { ...output, projectionState: target } : output;
   }
@@ -221,10 +221,10 @@ export function applyAction(state, action = {}, options = {}) {
     if (action.path === "/media/cam2_20030418.dat") {
       target.unlocked.mediaReveal = true;
       completeObjective(target, "decode_cam2");
-      output.terminalLines.push("extracting printable strings...");
+      output.terminalLines.push("extracting printable strings from cam2 payload...");
       output.terminalLines.push(action.decodedText || "");
     } else {
-      output.terminalLines.push("no printable strings found");
+      output.terminalLines.push("no printable strings found; evidence trail remains inconclusive");
     }
     assessTrustShift(target, action, output, options);
     return options.projectionMode ? { ...output, projectionState: target } : output;

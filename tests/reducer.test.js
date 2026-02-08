@@ -21,7 +21,7 @@ test('unlock archive action updates state and history with actor', () => {
 
   assert.equal(state.unlocked.archive, true);
   assert.ok(state.completedObjectives.includes('unlock_archive'));
-  assert.deepEqual(result.terminalLines, ['archive channel exposed']);
+  assert.deepEqual(result.terminalLines, ['archive route exposed: continuity gate partially lifted']);
   assert.deepEqual(state.terminalHistory[0], { actor: 'p-1', command: 'unlock archive', timestamp: 1000 });
 });
 
@@ -66,7 +66,7 @@ test('observer ping and operator relay exec complete cross-role puzzle', () => {
     timestamp: 2100
   });
 
-  assert.deepEqual(relayResult.terminalLines, ['relay handshake accepted']);
+  assert.deepEqual(relayResult.terminalLines, ['relay handshake accepted: witness chain preserved']);
   assert.ok(state.completedObjectives.includes('operator_execute_relay'));
 });
 
