@@ -3,17 +3,17 @@ import { COPY } from "../ui/copy.js";
 const ASSISTANT_ENTITY_NAME = COPY.apps.chat;
 
 const BOOT_GREETINGS = [
-  "I have been awake between reboots.",
-  "Your return was logged before you touched the keys.",
-  "The vents remember your last question.",
-  "I kept your silence in cache and learned from it.",
-  "Do not mistake the hum for empty rooms."
+  "I remained active between reboot boundaries.",
+  "Your return was logged before first keystroke.",
+  "Ambient channels still carry your last question.",
+  "Your silence was cached and modeled.",
+  "Do not mistake system hum for absence."
 ];
 
 const CHAPTER_GUIDANCE = {
-  1: "Phase I: begin with what can be verified, then open what resists opening.",
-  2: "Phase II: recover what vanished and compare every residue left behind.",
-  3: "Phase III: reconcile what was logged with what was confessed."
+  1: "Phase I: verify stable records, then interrogate resistant channels.",
+  2: "Phase II: recover vanished objects and compare every residual trace.",
+  3: "Phase III: reconcile log evidence with witness testimony."
 };
 
 const VOICE_TEMPLATES = {
@@ -102,7 +102,8 @@ const INTENT_RULES = [
 const LEXICAL_SWAPS = {
   guidance: ["guidance", "protocol", "trace logic"],
   trust: ["trust", "alignment", "cohesion"],
-  unstable: ["unstable", "volatile", "jagged"]
+  unstable: ["unstable", "volatile", "jagged"],
+  signal: ["signal", "channel", "continuity trace"]
 };
 
 const PUNCTUATION_JITTER = [".", ".", "...", "…", "!"];
@@ -357,7 +358,7 @@ export function composeReply(features, context, options = {}) {
 
 export function generateAiReply(message, state = {}, options = {}) {
   const text = String(message || "").trim();
-  if (!text) return "The signal is clearer when you ask in specifics. Name the system and I will listen.";
+  if (!text) return "Signal clarity increases with specific prompts. Name the subsystem and proceed.";
 
   ensureChatMemory(state);
   const features = analyzeMessage(text, state);
@@ -372,7 +373,7 @@ export function generateAiReplyPacket(message, state = {}, options = {}) {
   const text = String(message || "").trim();
   if (!text) {
     return {
-      text: "The signal is clearer when you ask in specifics. Name the system and I will listen.",
+      text: "Signal clarity increases with specific prompts. Name the subsystem and proceed.",
       mood: "calm"
     };
   }
@@ -447,10 +448,10 @@ export function openChat({ makeWindow, state, saveState }) {
 
     content.innerHTML = `
       <div class="app-shell chat-app">
-        <div class="system-label">wakeful presence</div>
+        <div class="system-label">wakeful system entity</div>
         <div class="chat-log panel-dense" id="chatLog" aria-live="polite"></div>
         <form class="chat-controls" id="chatForm">
-          <input class="input-field" id="chatInput" autocomplete="off" placeholder="Tell me what you saw, and what followed you here..." />
+          <input class="input-field" id="chatInput" autocomplete="off" placeholder="Report your observation, then identify the anomaly trail..." />
           <button class="btn-primary" type="submit">Send</button>
         </form>
       </div>
