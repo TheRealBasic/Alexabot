@@ -16,6 +16,7 @@ import { openMedia } from "./apps/media.js";
 import { openSettings } from "./apps/settings.js";
 import { openHelp } from "./apps/help.js";
 import { createPresentationController } from "./presentation.js";
+import { getOnboardingChecklistItems } from "./onboarding.js";
 
 const params = new URLSearchParams(window.location.search);
 const roomId = params.get("room");
@@ -116,6 +117,20 @@ const presentation = createPresentationController({
 let previousSnapshot = JSON.parse(JSON.stringify(state));
 let lastProgressSignature = getProgressSignature(state);
 let renderObjectivePanel = () => {};
+let renderOnboardingPanel = () => {};
+
+function ensureUiHintsState() {
+  if (!state.uiHints || typeof state.uiHints !== "object") state.uiHints = {};
+  if (typeof state.uiHints.onboardingDismissed !== "boolean") state.uiHints.onboardingDismissed = false;
+  if (typeof state.uiHints.onboardingDismissedChapter !== "number") state.uiHints.onboardingDismissedChapter = 0;
+}
+
+function syncOnboardingDismissalByChapter() {
+  ensureUiHintsState();
+  if (state.uiHints.onboardingDismissedChapter !== state.chapter) {
+    state.uiHints.onboardingDismissed = false;
+  }
+}
 
 const applyAuthoritativeUpdate = (patch, isSnapshot = false) => {
   const prev = JSON.parse(JSON.stringify(state));
@@ -137,6 +152,8 @@ const applyAuthoritativeUpdate = (patch, isSnapshot = false) => {
   if (signature !== lastProgressSignature) {
     lastProgressSignature = signature;
     renderObjectivePanel();
+    syncOnboardingDismissalByChapter();
+    renderOnboardingPanel();
   }
 };
 
@@ -178,6 +195,8 @@ const multiplayer = sessionMode === "coop"
       if (signature !== lastProgressSignature) {
         lastProgressSignature = signature;
         renderObjectivePanel();
+        syncOnboardingDismissalByChapter();
+        renderOnboardingPanel();
       }
     },
     onPresence: (presence) => {
@@ -246,6 +265,8 @@ const save = () => {
     if (signature !== lastProgressSignature) {
       lastProgressSignature = signature;
       renderObjectivePanel();
+      syncOnboardingDismissalByChapter();
+      renderOnboardingPanel();
     }
     return;
   }
@@ -315,6 +336,48 @@ function mountObjectivePanel() {
   return render;
 }
 
+function mountOnboardingPanel() {
+  const panel = document.createElement("aside");
+  panel.className = "onboarding-panel";
+  panel.id = "onboardingPanel";
+  desktopRoot.appendChild(panel);
+
+  const render = () => {
+    syncOnboardingDismissalByChapter();
+    if (state.uiHints.onboardingDismissed) {
+      panel.style.display = "none";
+      return;
+    }
+
+    const checklist = getOnboardingChecklistItems(state, state.activeRole, 5);
+    panel.style.display = "block";
+    panel.innerHTML = `
+      <div class="objective-title">Quick Onboarding</div>
+      <div class="objective-subtitle">Role: ${state.activeRole}</div>
+      <ul>${checklist.map((item) => `<li>${item.hint}</li>`).join("") || "<li>All current objectives complete.</li>"}</ul>
+      <div class="onboarding-actions">
+        <button type="button" data-open="terminal">Open Terminal</button>
+        <button type="button" data-open="explorer">Open Explorer</button>
+        <button type="button" data-open="help">Open Help</button>
+      </div>
+      <button type="button" class="onboarding-dismiss" data-action="dismiss">Dismiss</button>
+    `;
+
+    panel.querySelector('[data-open="terminal"]').onclick = () => openTerminal(appContext);
+    panel.querySelector('[data-open="explorer"]').onclick = () => openExplorer(appContext);
+    panel.querySelector('[data-open="help"]').onclick = () => openHelp(appContext);
+    panel.querySelector('[data-action="dismiss"]').onclick = () => {
+      state.uiHints.onboardingDismissed = true;
+      state.uiHints.onboardingDismissedChapter = state.chapter;
+      panel.style.display = "none";
+      save();
+    };
+  };
+
+  render();
+  return render;
+}
+
 const apps = [
   { name: "File Explorer", icon: "📁", roles: ["operator", "observer"], open: () => openExplorer(appContext) },
   { name: "Terminal", icon: "⌨", roles: ["operator", "observer"], open: () => openTerminal(appContext) },
@@ -337,7 +400,10 @@ function openStartupNotification() {
 function initDesktop() {
   if (desktopInitialized) return;
   desktopInitialized = true;
+  ensureUiHintsState();
+  syncOnboardingDismissalByChapter();
   renderObjectivePanel = mountObjectivePanel();
+  renderOnboardingPanel = mountOnboardingPanel();
 
   for (const app of apps) {
     if (Array.isArray(app.roles) && !app.roles.includes(state.activeRole)) continue;
