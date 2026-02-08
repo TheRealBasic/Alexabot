@@ -5,9 +5,11 @@ import { runBoot } from "./boot.js";
 import { createMultiplayerClient, applyIncrementalPatch } from "./multiplayer/client.js";
 import { applyAction } from "./progression/reducer.js";
 import {
+  consumeManifestation,
   evaluateBehaviorReactions,
   getAppGlitchStyle,
-  getTrayWarningText
+  getTrayWarningText,
+  isManifestationActive
 } from "./progression/reactions.js";
 import { openExplorer } from "./apps/explorer.js";
 import { openTerminal } from "./apps/terminal.js";
@@ -114,12 +116,20 @@ applyJoinFormDefaults();
 updateConnectionIndicators();
 
 const notify = (message, { actor } = {}) => {
+  const delayed = isManifestationActive(state, "delayedNotification");
+  const body = delayed && consumeManifestation(state, "delayedNotification")
+    ? `${message} // relay delay acknowledged`
+    : message;
   const toast = document.createElement("div");
   toast.className = "toast";
-  toast.textContent = actor ? `[${actor}] ${message}` : message;
-  notificationCenter.appendChild(toast);
-  setTimeout(() => toast.classList.add("is-exiting"), 2500);
-  setTimeout(() => toast.remove(), 2750);
+  toast.textContent = actor ? `[${actor}] ${body}` : body;
+  const mountToast = () => {
+    notificationCenter.appendChild(toast);
+    setTimeout(() => toast.classList.add("is-exiting"), 2500);
+    setTimeout(() => toast.remove(), 2750);
+  };
+  if (delayed) setTimeout(mountToast, 400);
+  else mountToast();
 };
 
 const presentation = createPresentationController({
@@ -496,7 +506,8 @@ function initDesktop() {
 
   setInterval(() => {
     const now = new Date(Date.now() + state.driftMinutes * 60_000);
-    trayClock.textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const baseClock = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    trayClock.textContent = isManifestationActive(state, "labelShift") ? `${baseClock} ?` : baseClock;
     setTrayHealth(trayClock, trayClock.textContent);
     trayState.textContent = getTrayWarningText(state);
     setTrayHealth(trayState, trayState.textContent);

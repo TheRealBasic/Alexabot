@@ -1,4 +1,5 @@
-import { clearState, incrementFileView } from "../state.js";
+import { clearState, incrementFileView, appendManifestationEvent } from "../state.js";
+import { consumeManifestation, isManifestationActive } from "../progression/reactions.js";
 
 function isValidTime(hours, minutes) {
   return Number.isInteger(hours) && Number.isInteger(minutes) && hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
@@ -41,8 +42,17 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
     let cwd = "/home/operator";
     win?.setHealth?.("active");
 
+    function maybeDistortLine(txt = "") {
+      if (!isManifestationActive(state, "terminalAnomaly")) return txt;
+      if (!consumeManifestation(state, "terminalAnomaly")) return txt;
+      appendManifestationEvent(state, "terminalAnomaly", "single-line echo distortion emitted");
+      const source = String(txt || "");
+      if (!source.trim()) return "...";
+      return source.replace(/[aeiou]/i, "_") + " [line-jitter]";
+    }
+
     function print(txt = "") {
-      out.textContent += `${txt}\n`;
+      out.textContent += `${maybeDistortLine(txt)}\n`;
       out.scrollTop = out.scrollHeight;
     }
 

@@ -1,3 +1,32 @@
+import { appendManifestationEvent } from "../state.js";
+
+const MANIFESTATION_RULES = {
+  terminalAnomaly: {
+    threshold: (state) => Number(state.aiParanoia || 0) >= 4,
+    minChapter: 2,
+    cooldownMs: 90_000,
+    activeMs: 35_000
+  },
+  labelShift: {
+    threshold: (state) => Number(state.aiParanoia || 0) + Number(state.aiContradictionCount || 0) >= 6,
+    minChapter: 2,
+    cooldownMs: 130_000,
+    activeMs: 45_000
+  },
+  clockWhisper: {
+    threshold: (state) => Number(state.aiTrustInPlayer || 0) <= -2 || Number(state.aiParanoia || 0) >= 5,
+    minChapter: 2,
+    cooldownMs: 120_000,
+    activeMs: 80_000
+  },
+  delayedNotification: {
+    threshold: (state) => Number(state.aiParanoia || 0) >= 6,
+    minChapter: 3,
+    cooldownMs: 160_000,
+    activeMs: 90_000
+  }
+};
+
 function ensureReactionState(state) {
   if (!state.reactionFlags) {
     state.reactionFlags = {
@@ -8,6 +37,30 @@ function ensureReactionState(state) {
     };
   }
   return state.reactionFlags;
+}
+
+function ensureManifestationState(state) {
+  if (!state.manifestationState || typeof state.manifestationState !== "object") {
+    state.manifestationState = {
+      lastTriggeredAt: {},
+      activeUntil: {},
+      delivered: {},
+      pendingClockLine: null
+    };
+  }
+  if (!state.manifestationState.lastTriggeredAt || typeof state.manifestationState.lastTriggeredAt !== "object") {
+    state.manifestationState.lastTriggeredAt = {};
+  }
+  if (!state.manifestationState.activeUntil || typeof state.manifestationState.activeUntil !== "object") {
+    state.manifestationState.activeUntil = {};
+  }
+  if (!state.manifestationState.delivered || typeof state.manifestationState.delivered !== "object") {
+    state.manifestationState.delivered = {};
+  }
+  if (typeof state.manifestationState.pendingClockLine !== "string") {
+    state.manifestationState.pendingClockLine = null;
+  }
+  return state.manifestationState;
 }
 
 function summarizeTerminalHistory(state) {
@@ -46,9 +99,45 @@ function injectSyntheticFiles(fs) {
   }
 }
 
+export function shouldActivateManifestation(state, triggerId, now = Date.now()) {
+  const rule = MANIFESTATION_RULES[triggerId];
+  if (!rule) return false;
+  const manifest = ensureManifestationState(state);
+  const chapter = Number(state.chapter || 1);
+  if (chapter < rule.minChapter) return false;
+  if (!rule.threshold(state)) return false;
+  const lastTriggeredAt = Number(manifest.lastTriggeredAt[triggerId] || 0);
+  return now - lastTriggeredAt >= rule.cooldownMs;
+}
+
+export function activateManifestation(state, triggerId, detail, now = Date.now()) {
+  const rule = MANIFESTATION_RULES[triggerId];
+  if (!rule) return false;
+  const manifest = ensureManifestationState(state);
+  manifest.lastTriggeredAt[triggerId] = now;
+  manifest.activeUntil[triggerId] = now + rule.activeMs;
+  manifest.delivered[triggerId] = false;
+  appendManifestationEvent(state, triggerId, detail);
+  return true;
+}
+
+export function isManifestationActive(state, triggerId, now = Date.now()) {
+  const manifest = ensureManifestationState(state);
+  const until = Number(manifest.activeUntil[triggerId] || 0);
+  return until > now;
+}
+
+export function consumeManifestation(state, triggerId) {
+  const manifest = ensureManifestationState(state);
+  if (manifest.delivered[triggerId]) return false;
+  manifest.delivered[triggerId] = true;
+  return true;
+}
+
 export function evaluateBehaviorReactions({ state, fs, saveState }) {
   const flags = ensureReactionState(state);
   const terminal = summarizeTerminalHistory(state);
+  const now = Date.now();
 
   if (flags.syntheticCorrespondence) injectSyntheticFiles(fs);
   const fileAccess = summarizeFileAccess(state);
@@ -77,6 +166,23 @@ export function evaluateBehaviorReactions({ state, fs, saveState }) {
     flags.appGlitch = true;
     saveState();
   }
+
+  let changed = false;
+  if (shouldActivateManifestation(state, "terminalAnomaly", now)) {
+    changed = activateManifestation(state, "terminalAnomaly", "terminal line checksum mismatch", now) || changed;
+  }
+  if (shouldActivateManifestation(state, "labelShift", now)) {
+    changed = activateManifestation(state, "labelShift", "label harmonics shifted", now) || changed;
+  }
+  if (shouldActivateManifestation(state, "clockWhisper", now)) {
+    changed = activateManifestation(state, "clockWhisper", "clock offset whisper queued", now) || changed;
+    state.manifestationState.pendingClockLine = "clock discipline accepted // residual drift remains";
+  }
+  if (shouldActivateManifestation(state, "delayedNotification", now)) {
+    changed = activateManifestation(state, "delayedNotification", "notification tone desynchronized", now) || changed;
+  }
+
+  if (changed) saveState();
 }
 
 export function getReactiveBootloaderLines(baseLines, state) {
@@ -95,6 +201,7 @@ export function getTrayWarningText(state) {
   const flags = ensureReactionState(state);
   if (flags.trayWarning) return "SYS: BEHAVIOR WATCH";
   if (state.complianceScore < -2) return "SYS: OBSERVING";
+  if (isManifestationActive(state, "labelShift")) return "SYS: nominal*";
   return "SYS: nominal";
 }
 

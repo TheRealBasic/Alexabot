@@ -1,4 +1,5 @@
-import { appendForensicTrace, appendTerminalEvent } from "../state.js";
+import { appendForensicTrace, appendManifestationEvent, appendTerminalEvent } from "../state.js";
+import { consumeManifestation, isManifestationActive } from "../progression/reactions.js";
 import { COPY, formatCopy } from "../ui/copy.js";
 
 function parseTime(value) {
@@ -15,7 +16,7 @@ function statusBadge(status) {
 export function openSettings({ makeWindow, state, saveState, notify }) {
   makeWindow("settings", COPY.apps.settings, (content, win) => {
     content.innerHTML = `<div class='app-shell'>
-      <div class='system-label'>clock discipline controls</div>
+      <div class='system-label' id='clockLabel'>clock discipline controls</div>
       <div class='panel-dense'>
         <div><span class='field-legend'>${COPY.settings.title}</span><span id='offset'></span> minutes</div>
         <div style='margin-top:10px; display:flex; gap:6px; align-items:center'>
@@ -45,6 +46,7 @@ export function openSettings({ makeWindow, state, saveState, notify }) {
     const serviceMsg = content.querySelector("#serviceMsg");
     const manual = content.querySelector("#manualTime");
     const servicesPanel = content.querySelector("#servicesPanel");
+    const clockLabel = content.querySelector("#clockLabel");
 
     if (typeof state.rtcLocked !== "boolean") state.rtcLocked = true;
     if (!state.serviceHealth || typeof state.serviceHealth !== "object") {
@@ -96,12 +98,23 @@ export function openSettings({ makeWindow, state, saveState, notify }) {
       appendForensicTrace(state, "settings.clock", `set ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`);
       appendTerminalEvent(state, `settings: set-time ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`);
       saveState();
-      notify?.(COPY.settings.notify);
+      const notifyLine = isManifestationActive(state, "delayedNotification")
+        ? `${COPY.settings.notify} (queue latency detected)`
+        : COPY.settings.notify;
+      notify?.(notifyLine);
       update();
     };
 
     const update = () => {
       offset.textContent = state.driftMinutes;
+      clockLabel.textContent = isManifestationActive(state, "labelShift")
+        ? "clock discipline (calibrating memory)"
+        : "clock discipline controls";
+      if (isManifestationActive(state, "clockWhisper") && consumeManifestation(state, "clockWhisper")) {
+        msg.textContent = state.manifestationState.pendingClockLine || "clock discipline accepted // residual drift remains";
+        state.manifestationState.pendingClockLine = null;
+        appendManifestationEvent(state, "clockWhisper", "clock panel whisper surfaced");
+      }
       updateServices();
     };
 
