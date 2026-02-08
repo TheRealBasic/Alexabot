@@ -19,6 +19,8 @@ import { createPresentationController } from "./presentation.js";
 
 const params = new URLSearchParams(window.location.search);
 const roomId = params.get("room");
+const accessCode = params.get("code") || "";
+const displayName = params.get("name") || "";
 const playerId = params.get("player") || `p-${Math.floor(Math.random() * 1e6).toString(36)}`;
 const preferredRole = params.get("role") === "observer" ? "observer" : "operator";
 const sessionMode = roomId ? "coop" : "solo";
@@ -49,11 +51,52 @@ const startBtn = document.getElementById("startBtn");
 const startMenu = document.getElementById("startMenu");
 const trayClock = document.getElementById("trayClock");
 const trayState = document.getElementById("trayState");
+const trayConnection = document.getElementById("trayConnection");
+const traySync = document.getElementById("traySync");
 const cinematicOverlay = document.getElementById("cinematicOverlay");
 const taskbar = document.querySelector(".taskbar");
 const notificationCenter = document.getElementById("notificationCenter");
+const displayNameInput = document.getElementById("displayNameInput");
+const roomIdInput = document.getElementById("roomIdInput");
+const accessCodeInput = document.getElementById("accessCodeInput");
+const roomNameInput = document.getElementById("roomNameInput");
+const privateRoomInput = document.getElementById("privateRoomInput");
+const createRoomBtn = document.getElementById("createRoomBtn");
+const joinRoomBtn = document.getElementById("joinRoomBtn");
+const copyInviteBtn = document.getElementById("copyInviteBtn");
+const lobbyList = document.getElementById("lobbyList");
+const lobbyStatus = document.getElementById("lobbyStatus");
 
 let desktopInitialized = false;
+
+let connectionQuality = "offline";
+let syncState = "idle";
+
+function updateConnectionIndicators() {
+  trayConnection.textContent = `NET: ${connectionQuality.toUpperCase()}`;
+  traySync.textContent = `SYNC: ${syncState.toUpperCase()}`;
+}
+
+function buildSessionUrl({ room, code, name, host }) {
+  const next = new URL(window.location.href);
+  next.searchParams.set("room", room);
+  next.searchParams.set("player", playerId);
+  next.searchParams.set("role", host ? "operator" : preferredRole);
+  if (params.get("token")) next.searchParams.set("token", params.get("token"));
+  if (params.get("ws")) next.searchParams.set("ws", params.get("ws"));
+  if (code) next.searchParams.set("code", code); else next.searchParams.delete("code");
+  if (name) next.searchParams.set("name", name); else next.searchParams.delete("name");
+  return next.toString();
+}
+
+function applyJoinFormDefaults() {
+  if (displayNameInput) displayNameInput.value = displayName || playerId;
+  if (roomIdInput) roomIdInput.value = roomId || "";
+  if (accessCodeInput) accessCodeInput.value = accessCode || "";
+}
+
+applyJoinFormDefaults();
+updateConnectionIndicators();
 
 const notify = (message, { actor } = {}) => {
   const toast = document.createElement("div");
@@ -102,6 +145,13 @@ const multiplayer = sessionMode === "coop"
     roomId,
     playerId,
     authToken: params.get("token") || "",
+    accessCode,
+    displayName: displayName || playerId,
+    roomMeta: {
+      displayName: params.get("roomName") || undefined,
+      accessCode: accessCode || undefined,
+      isPrivate: params.get("private") === "1"
+    },
     url: params.get("ws") || "ws://localhost:8787",
     onSnapshot: (snapshot) => {
       applyAuthoritativeUpdate(snapshot, true);
@@ -130,8 +180,38 @@ const multiplayer = sessionMode === "coop"
         renderObjectivePanel();
       }
     },
+    onPresence: (presence) => {
+      const connected = presence?.connectedCount || 0;
+      lobbyStatus.textContent = `Room presence: ${connected}/${presence?.capacity || 0}`;
+    },
+    onRoomEvent: (event) => {
+      if (event.type === "player.joined") notify(`${event.player?.displayName || event.player?.playerId} joined room`);
+      if (event.type === "player.left") notify(`${event.player?.playerId} disconnected (grace window active)`);
+    },
+    onLobby: (rooms) => {
+      if (!lobbyList) return;
+      if (!Array.isArray(rooms) || !rooms.length) {
+        lobbyList.innerHTML = '<div class="notice">No public rooms yet.</div>';
+        return;
+      }
+      lobbyList.innerHTML = rooms.map((entry) => `<button class="start-item" data-room="${entry.roomId}" style="margin-bottom:4px;">${entry.displayName} · ${entry.connectedCount}/${entry.seats}${entry.hasAccessCode ? " · code" : ""}</button>`).join("");
+      for (const button of lobbyList.querySelectorAll("button[data-room]")) {
+        button.onclick = () => {
+          const selectedRoom = button.getAttribute("data-room");
+          roomIdInput.value = selectedRoom || "";
+        };
+      }
+    },
     onStatus: (status) => {
+      if (["connected", "connecting", "reconnecting", "disconnected"].includes(status)) {
+        connectionQuality = status;
+        updateConnectionIndicators();
+      }
       if (desktopInitialized) notify(`coop ${status}`);
+    },
+    onSyncStatus: (status) => {
+      syncState = status;
+      updateConnectionIndicators();
     }
   })
   : null;
@@ -336,6 +416,46 @@ function initDesktop() {
     desktopRoot.style.transform = glitch.transform;
   }, 500);
 }
+
+createRoomBtn.onclick = () => {
+  const room = (roomIdInput.value || `room-${Math.random().toString(36).slice(2, 8)}`).trim();
+  const code = (accessCodeInput.value || "").trim();
+  const name = (displayNameInput.value || playerId).trim();
+  const roomLabel = (roomNameInput.value || `Room ${room.slice(0, 6)}`).trim();
+  const privateFlag = privateRoomInput.checked;
+  const next = new URL(buildSessionUrl({ room, code, name, host: true }));
+  next.searchParams.set("roomName", roomLabel);
+  if (privateFlag) next.searchParams.set("private", "1"); else next.searchParams.delete("private");
+  window.location.href = next.toString();
+};
+
+joinRoomBtn.onclick = () => {
+  const room = (roomIdInput.value || "").trim();
+  if (!room) {
+    notify("Enter a room ID to join.");
+    return;
+  }
+  const code = (accessCodeInput.value || "").trim();
+  const name = (displayNameInput.value || playerId).trim();
+  window.location.href = buildSessionUrl({ room, code, name, host: false });
+};
+
+copyInviteBtn.onclick = async () => {
+  const room = (roomIdInput.value || roomId || "").trim();
+  if (!room) {
+    notify("Enter a room ID first.");
+    return;
+  }
+  const code = (accessCodeInput.value || "").trim();
+  const name = (displayNameInput.value || playerId).trim();
+  const inviteUrl = buildSessionUrl({ room, code, name, host: false });
+  try {
+    await navigator.clipboard.writeText(inviteUrl);
+    notify("Invite link copied.");
+  } catch {
+    notify("Clipboard unavailable. Copy URL manually from address bar.");
+  }
+};
 
 loginBtn.onclick = () => {
   presentation.startAmbient();
