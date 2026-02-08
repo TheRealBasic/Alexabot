@@ -77,7 +77,23 @@ function normalizeOutgoingAction(action = {}) {
   };
 }
 
-export function createMultiplayerClient({ roomId, playerId, authToken, url, onSnapshot, onPatch, onAction, onStatus }) {
+export function createMultiplayerClient({
+  roomId,
+  playerId,
+  authToken,
+  accessCode,
+  roomMeta,
+  displayName,
+  url,
+  onSnapshot,
+  onPatch,
+  onAction,
+  onPresence,
+  onLobby,
+  onRoomEvent,
+  onStatus,
+  onSyncStatus
+}) {
   let ws;
   let reconnectTimer;
   let closed = false;
@@ -96,10 +112,13 @@ export function createMultiplayerClient({ roomId, playerId, authToken, url, onSn
     }
   };
 
+  const setSyncStatus = (status) => onSyncStatus?.(status);
+
   const findPendingAction = (sequence) => pendingActions.find((item) => item.sequence === sequence);
 
   const requestSnapshotResync = () => {
     pendingResync = true;
+    setSyncStatus("out-of-sync");
     if (!isSocketOpen()) return;
     ws.send(JSON.stringify({ type: "snapshot.request", roomId, playerId }));
   };
@@ -108,10 +127,14 @@ export function createMultiplayerClient({ roomId, playerId, authToken, url, onSn
     if (!isSocketOpen() || pendingResync || inFlightSequence !== null) return;
     if (!Number.isInteger(roomVersion) || roomVersion < 1) return;
     const next = pendingActions.find((item) => !item.sent);
-    if (!next) return;
+    if (!next) {
+      setSyncStatus("in-sync");
+      return;
+    }
 
     next.sent = true;
     inFlightSequence = next.sequence;
+    setSyncStatus("syncing");
     ws.send(JSON.stringify({
       type: "action",
       roomId,
@@ -148,7 +171,17 @@ export function createMultiplayerClient({ roomId, playerId, authToken, url, onSn
     ws.onopen = () => {
       reconnectAttempts = 0;
       notifyStatus("connected");
-      ws.send(JSON.stringify({ type: "join", roomId, playerId, token: authToken }));
+      setSyncStatus("syncing");
+      ws.send(JSON.stringify({ type: "lobby.subscribe" }));
+      ws.send(JSON.stringify({
+        type: "join",
+        roomId,
+        playerId,
+        token: authToken,
+        accessCode: accessCode || undefined,
+        displayName: displayName || playerId,
+        meta: roomMeta || undefined
+      }));
       ws.send(JSON.stringify({ type: "snapshot.request", roomId, playerId }));
     };
 
@@ -168,6 +201,7 @@ export function createMultiplayerClient({ roomId, playerId, authToken, url, onSn
           inFlightSequence = null;
         }
         onSnapshot?.(message.state, message.meta || {});
+        setSyncStatus("in-sync");
         flushPendingActions();
       }
       if (message.type === "patch") {
@@ -198,6 +232,9 @@ export function createMultiplayerClient({ roomId, playerId, authToken, url, onSn
         }
         onStatus?.(`action rejected: ${message.reason || "invalid"}`);
       }
+      if (message.type === "room.presence") onPresence?.(message.presence || null);
+      if (message.type === "player.joined" || message.type === "player.left") onRoomEvent?.(message);
+      if (message.type === "lobby.rooms") onLobby?.(message.rooms || []);
     };
 
     ws.onclose = (event) => {
@@ -208,6 +245,7 @@ export function createMultiplayerClient({ roomId, playerId, authToken, url, onSn
         return;
       }
       notifyStatus("disconnected");
+      setSyncStatus("out-of-sync");
       inFlightSequence = null;
       for (const pendingAction of pendingActions) pendingAction.sent = false;
       if (closed) return;

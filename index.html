@@ -379,7 +379,21 @@
       <div style="font-size:16px; margin-bottom:8px;">Recovered Session</div>
       <div><strong>User:</strong> operator</div>
       <div class="notice" id="lastSession"></div>
+      <div class="notice">Display Name</div>
+      <input id="displayNameInput" placeholder="Operator Alias" style="width:100%; background:#091726; border:1px solid #2d4f6f; color:#d2dfeb; padding:7px; margin-top:4px;" />
+      <div class="notice">Room ID</div>
+      <input id="roomIdInput" placeholder="public-room" style="width:100%; background:#091726; border:1px solid #2d4f6f; color:#d2dfeb; padding:7px; margin-top:4px;" />
+      <div class="notice">Access Code (optional)</div>
+      <input id="accessCodeInput" placeholder="optional" style="width:100%; background:#091726; border:1px solid #2d4f6f; color:#d2dfeb; padding:7px; margin-top:4px;" />
+      <div class="notice">Room Label (host)</div>
+      <input id="roomNameInput" placeholder="Squad Room" style="width:100%; background:#091726; border:1px solid #2d4f6f; color:#d2dfeb; padding:7px; margin-top:4px;" />
+      <label class="notice" style="display:block; margin-top:6px;"><input type="checkbox" id="privateRoomInput" /> Private room</label>
+      <button id="createRoomBtn">Create / Host Room</button>
+      <button id="joinRoomBtn">Join Room</button>
+      <button id="copyInviteBtn">Copy Invite Link</button>
       <button id="loginBtn">Continue Session</button>
+      <div class="notice" id="lobbyStatus"></div>
+      <div id="lobbyList" style="max-height:120px; overflow:auto; border:1px solid #294564; margin-top:6px; padding:6px;"></div>
     </div>
   </section>
 
@@ -396,6 +410,8 @@
       <div class="tasklist" id="taskList"></div>
       <div class="tray">
         <span id="trayState">SYS: DEGRADED</span>
+        <span id="trayConnection">NET: OFFLINE</span>
+        <span id="traySync">SYNC: IDLE</span>
         <span id="trayClock"></span>
       </div>
     </div>

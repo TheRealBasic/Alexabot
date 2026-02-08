@@ -25,6 +25,9 @@ const SOCKET_MESSAGE_WINDOW_MS = Number(process.env.WS_MESSAGE_RATE_WINDOW_MS ||
 const MAX_PAYLOAD_BYTES = Number(process.env.WS_MAX_PAYLOAD_BYTES || 16 * 1024);
 const MAX_ROOM_SIZE = Number(process.env.WS_MAX_ROOM_SIZE || 24);
 const JOIN_THROTTLE_MS = Number(process.env.WS_JOIN_THROTTLE_MS || 800);
+const REJOIN_GRACE_MS = Number(process.env.WS_REJOIN_GRACE_MS || 45_000);
+
+const lobbySubscribers = new Set();
 
 function decodeBase64Url(value) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -106,6 +109,12 @@ function sanitizeString(value, maxLength = 200) {
   const trimmed = value.trim();
   if (!trimmed) return null;
   return trimmed.slice(0, maxLength);
+}
+
+function sanitizeAccessCode(value) {
+  const code = sanitizeString(value, 20);
+  if (!code) return null;
+  return code.replace(/\s+/g, "").toUpperCase();
 }
 
 function rejectAction(socket, reason, { roomId, playerId, role, rawAction, details = {} }) {
@@ -234,8 +243,10 @@ function normalizeAction(rawAction, joinedSession) {
 }
 
 function createRoom(roomId) {
+  const createdAt = Date.now();
   const room = {
     roomId,
+    createdAt,
     version: 1,
     versionHistory: [{ version: 1, timestamp: Date.now() }],
     lastSavedAt: null,
@@ -243,27 +254,139 @@ function createRoom(roomId) {
       ...defaultState,
       sessionMode: "coop",
       roomId,
-      playerId: "server"
+      playerId: "server",
+      roomMeta: {
+        displayName: `Room ${roomId.slice(0, 6).toUpperCase()}`,
+        hostId: null,
+        accessCode: null,
+        isPrivate: false,
+        createdAt
+      }
     },
     sockets: new Set(),
     saveTimer: null,
-    processedClientSequences: new Map()
+    processedClientSequences: new Map(),
+    members: new Map(),
+    disconnectedSessions: new Map(),
+    metadata: {
+      displayName: `Room ${roomId.slice(0, 6).toUpperCase()}`,
+      hostId: null,
+      accessCode: null,
+      isPrivate: false,
+      createdAt
+    }
   };
   rooms.set(roomId, room);
   return room;
 }
 
 function hydrateRoomRecord(record) {
+  const roomMeta = record.state?.roomMeta && typeof record.state.roomMeta === "object"
+    ? {
+      displayName: sanitizeString(record.state.roomMeta.displayName, 60) || `Room ${record.roomId.slice(0, 6).toUpperCase()}`,
+      hostId: sanitizeString(record.state.roomMeta.hostId, 80) || null,
+      accessCode: sanitizeAccessCode(record.state.roomMeta.accessCode),
+      isPrivate: Boolean(record.state.roomMeta.isPrivate),
+      createdAt: Number(record.state.roomMeta.createdAt || record.lastSavedAt || Date.now())
+    }
+    : null;
   return {
     roomId: record.roomId,
+    createdAt: Number(record.lastSavedAt || Date.now()),
     version: record.version,
     versionHistory: record.versionHistory || [{ version: record.version, timestamp: Date.now() }],
     lastSavedAt: record.lastSavedAt || null,
     state: record.state,
     sockets: new Set(),
     saveTimer: null,
-    processedClientSequences: new Map()
+    processedClientSequences: new Map(),
+    members: new Map(),
+    disconnectedSessions: new Map(),
+    metadata: roomMeta || {
+      displayName: `Room ${record.roomId.slice(0, 6).toUpperCase()}`,
+      hostId: null,
+      accessCode: null,
+      isPrivate: false,
+      createdAt: Number(record.lastSavedAt || Date.now())
+    }
   };
+}
+
+function getRoomMetaSnapshot(room) {
+  return {
+    displayName: room.metadata.displayName,
+    hostId: room.metadata.hostId,
+    accessCode: room.metadata.accessCode,
+    isPrivate: room.metadata.isPrivate,
+    createdAt: room.metadata.createdAt
+  };
+}
+
+function syncRoomMetaToState(room) {
+  room.state.roomMeta = getRoomMetaSnapshot(room);
+}
+
+function updateRoomMetadata(room, { hostId, displayName, accessCode, isPrivate } = {}) {
+  if (hostId !== undefined) room.metadata.hostId = sanitizeString(hostId, 80) || null;
+  if (displayName !== undefined) room.metadata.displayName = sanitizeString(displayName, 60) || room.metadata.displayName;
+  if (accessCode !== undefined) room.metadata.accessCode = sanitizeAccessCode(accessCode);
+  if (isPrivate !== undefined) room.metadata.isPrivate = Boolean(isPrivate);
+  syncRoomMetaToState(room);
+}
+
+function buildPresencePayload(room) {
+  const participants = Array.from(room.members.values()).map((member) => ({
+    playerId: member.playerId,
+    role: member.role,
+    connected: Boolean(member.connected),
+    displayName: member.displayName || member.playerId,
+    lastSeenAt: member.lastSeenAt || Date.now()
+  }));
+  return {
+    roomId: room.roomId,
+    participants,
+    connectedCount: participants.filter((entry) => entry.connected).length,
+    capacity: MAX_ROOM_SIZE
+  };
+}
+
+function broadcastPresence(room) {
+  broadcast(room, { type: "room.presence", presence: buildPresencePayload(room), meta: { roomId: room.roomId } });
+}
+
+function listLobbyRooms() {
+  const payload = [];
+  for (const room of rooms.values()) {
+    if (room.metadata.isPrivate) continue;
+    payload.push({
+      roomId: room.roomId,
+      displayName: room.metadata.displayName,
+      hostId: room.metadata.hostId,
+      hasAccessCode: Boolean(room.metadata.accessCode),
+      connectedCount: Array.from(room.members.values()).filter((member) => member.connected).length,
+      seats: MAX_ROOM_SIZE,
+      createdAt: room.metadata.createdAt
+    });
+  }
+  return payload.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+function publishLobbySnapshot() {
+  const message = JSON.stringify({ type: "lobby.rooms", rooms: listLobbyRooms(), timestamp: Date.now() });
+  for (const subscriber of lobbySubscribers) {
+    if (subscriber.readyState === subscriber.OPEN) subscriber.send(message);
+  }
+}
+
+function sweepDisconnectedSessions(room) {
+  const now = Date.now();
+  for (const [playerId, session] of room.disconnectedSessions.entries()) {
+    if (now - session.disconnectedAt > REJOIN_GRACE_MS) {
+      room.disconnectedSessions.delete(playerId);
+      const member = room.members.get(playerId);
+      if (member && !member.connected) room.members.delete(playerId);
+    }
+  }
 }
 
 async function getRoom(roomId) {
@@ -272,6 +395,7 @@ async function getRoom(roomId) {
 
   const persisted = await loadRoom(roomId);
   const room = persisted ? hydrateRoomRecord(persisted) : createRoom(roomId);
+  syncRoomMetaToState(room);
   rooms.set(roomId, room);
   return room;
 }
@@ -316,10 +440,13 @@ if (PRELOAD_ROOMS_ON_START) {
   console.log(`[room-store] preloaded ${persistedRooms.length} active room(s)`);
 }
 await cleanupExpiredRooms();
+publishLobbySnapshot();
 
 wss.on("connection", (socket) => {
   let joinedRoomId = null;
   let joinedSession = null;
+  let joinedRoom = null;
+  let lobbySubscribed = false;
   socket.isAlive = true;
   socket.lastPongAt = Date.now();
   socket.rateWindowStartedAt = Date.now();
@@ -362,6 +489,13 @@ wss.on("connection", (socket) => {
       return;
     }
 
+    if (message.type === "lobby.subscribe") {
+      lobbySubscribed = true;
+      lobbySubscribers.add(socket);
+      socket.send(JSON.stringify({ type: "lobby.rooms", rooms: listLobbyRooms(), timestamp: Date.now() }));
+      return;
+    }
+
     if (message.type === "join") {
       if (now - socket.lastJoinAt < JOIN_THROTTLE_MS) {
         closeRateLimited(socket, "join throttled");
@@ -389,34 +523,76 @@ wss.on("connection", (socket) => {
       }
 
       const room = await getRoom(tokenClaims.roomId);
-      if (!joinedRoomId && room.sockets.size >= MAX_ROOM_SIZE) {
+      sweepDisconnectedSessions(room);
+      const inviteAccessCode = sanitizeAccessCode(message.accessCode);
+      if (room.metadata.accessCode && room.metadata.accessCode !== inviteAccessCode) {
+        closeUnauthorized(socket, "invalid access code");
+        return;
+      }
+
+      const knownMember = room.members.get(tokenClaims.playerId);
+      if (!joinedRoomId && room.sockets.size >= MAX_ROOM_SIZE && !knownMember?.connected) {
         socket.close(CLOSE_CODES.roomFull, "room is full");
         return;
       }
+
+      const requestedMeta = message.meta && typeof message.meta === "object" ? message.meta : null;
+      if (!room.metadata.hostId || tokenClaims.role === "host") {
+        updateRoomMetadata(room, {
+          hostId: room.metadata.hostId || tokenClaims.playerId,
+          displayName: requestedMeta?.displayName,
+          accessCode: requestedMeta?.accessCode,
+          isPrivate: requestedMeta?.isPrivate
+        });
+      }
+
       joinedRoomId = tokenClaims.roomId;
+      joinedRoom = room;
       joinedSession = Object.freeze({
         playerId: tokenClaims.playerId,
         role: tokenClaims.role,
         roomId: tokenClaims.roomId
       });
+
+      const reconnecting = room.disconnectedSessions.has(joinedSession.playerId);
+      room.disconnectedSessions.delete(joinedSession.playerId);
       room.sockets.add(socket);
-      socket.send(JSON.stringify({
-        type: "snapshot",
-        state: room.state,
-        meta: {
-          roomId: room.roomId,
-          version: room.version,
-          versionHistory: room.versionHistory,
-          lastSavedAt: room.lastSavedAt,
-          playerId: joinedSession.playerId,
-          role: joinedSession.role
-        }
-      }));
+      room.members.set(joinedSession.playerId, {
+        playerId: joinedSession.playerId,
+        role: joinedSession.role,
+        displayName: sanitizeString(message.displayName, 60) || joinedSession.playerId,
+        connected: true,
+        lastSeenAt: Date.now()
+      });
+      socket.joinedSession = joinedSession;
+
+      const joinMeta = {
+        roomId: room.roomId,
+        version: room.version,
+        versionHistory: room.versionHistory,
+        lastSavedAt: room.lastSavedAt,
+        playerId: joinedSession.playerId,
+        role: joinedSession.role,
+        roomMeta: getRoomMetaSnapshot(room),
+        reconnecting
+      };
+
+      socket.send(JSON.stringify({ type: "snapshot", state: room.state, meta: joinMeta }));
+      socket.send(JSON.stringify({ type: "room.presence", presence: buildPresencePayload(room), meta: { roomId: room.roomId } }));
+
+      broadcast(room, {
+        type: "player.joined",
+        player: room.members.get(joinedSession.playerId),
+        meta: { roomId: room.roomId, rejoined: reconnecting }
+      });
+      broadcastPresence(room);
+      publishLobbySnapshot();
+      scheduleSave(room);
       return;
     }
 
-    if (!joinedRoomId) return;
-    const room = await getRoom(joinedRoomId);
+    if (!joinedRoomId || !joinedSession) return;
+    const room = joinedRoom || await getRoom(joinedRoomId);
 
     if (message.type === "snapshot.request") {
       socket.send(JSON.stringify({
@@ -428,14 +604,14 @@ wss.on("connection", (socket) => {
           versionHistory: room.versionHistory,
           lastSavedAt: room.lastSavedAt,
           playerId: joinedSession.playerId,
-          role: joinedSession.role
+          role: joinedSession.role,
+          roomMeta: getRoomMetaSnapshot(room)
         }
       }));
       return;
     }
 
     if (message.type !== "action") return;
-    if (!joinedSession) return;
 
     const expectedVersion = parseExpectedVersion(message.expectedVersion);
     if (expectedVersion === null) {
@@ -516,33 +692,49 @@ wss.on("connection", (socket) => {
       if (oldest) room.processedClientSequences.delete(oldest);
     }
     room.versionHistory = [...(room.versionHistory || []), { version: room.version, timestamp: Date.now() }].slice(-100);
+    const member = room.members.get(joinedSession.playerId);
+    if (member) member.lastSeenAt = Date.now();
     scheduleSave(room);
     const meta = { roomId: room.roomId, version: room.version, playerId: joinedSession.playerId, role: joinedSession.role };
 
-    broadcast(room, {
-      type: "action.applied",
-      action,
-      meta
-    });
+    broadcast(room, { type: "action.applied", action, meta });
 
     const patch = computePatch(previous, room.state);
-    broadcast(room, {
-      type: "patch",
-      patch,
-      meta
-    });
+    broadcast(room, { type: "patch", patch, meta });
   });
 
   socket.on("close", () => {
-    if (!joinedRoomId) return;
+    if (lobbySubscribed) lobbySubscribers.delete(socket);
+    if (!joinedRoomId || !joinedSession) return;
     const room = rooms.get(joinedRoomId);
     if (!room) return;
     room.sockets.delete(socket);
+
+    const member = room.members.get(joinedSession.playerId);
+    if (member) {
+      member.connected = false;
+      member.lastSeenAt = Date.now();
+    }
+    room.disconnectedSessions.set(joinedSession.playerId, {
+      disconnectedAt: Date.now(),
+      role: joinedSession.role
+    });
+
+    broadcast(room, {
+      type: "player.left",
+      player: { playerId: joinedSession.playerId, role: joinedSession.role },
+      meta: { roomId: room.roomId, graceMs: REJOIN_GRACE_MS }
+    });
+    broadcastPresence(room);
+    publishLobbySnapshot();
   });
 });
 
 const heartbeatTimer = setInterval(() => {
   const now = Date.now();
+  for (const room of rooms.values()) {
+    sweepDisconnectedSessions(room);
+  }
   for (const socket of wss.clients) {
     if (socket.readyState !== socket.OPEN) continue;
     if (!socket.isAlive && now - (socket.lastPongAt || 0) > HEARTBEAT_TIMEOUT_MS) {
@@ -552,6 +744,7 @@ const heartbeatTimer = setInterval(() => {
     socket.isAlive = false;
     socket.ping();
   }
+  publishLobbySnapshot();
 }, HEARTBEAT_INTERVAL_MS);
 
 wss.on("close", () => clearInterval(heartbeatTimer));
