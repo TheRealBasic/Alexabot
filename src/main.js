@@ -112,7 +112,12 @@ const multiplayer = sessionMode === "coop"
       rehydrateContentFromState(state);
     },
     onAction: (action) => {
-      const result = applyAction(state, action);
+      let result = { notifications: [] };
+      if (action.type === "terminal.command") {
+        result = applyAction(state, action.command);
+      } else if (action.type === "objective.interact") {
+        result = applyAction(state, { type: "objective.complete", objectiveId: action.objectiveId });
+      }
       refreshChapterFromState(state);
       for (const note of result.notifications || []) notify(note.message, { actor: note.actor });
       rehydrateContentFromState(state);
@@ -165,14 +170,8 @@ const save = () => {
     return;
   }
 
-  const patch = {};
-  for (const key of Object.keys(state)) {
-    if (key === "activeRole" || key === "playerId") continue;
-    if (JSON.stringify(previousSnapshot[key]) !== JSON.stringify(state[key])) patch[key] = state[key];
-  }
-  if (Object.keys(patch).length > 0) {
-    multiplayer?.sendAction({ type: "state.patch", patch });
-  }
+  // In coop mode, progression and shared state are server-authoritative via validated actions.
+  // Local-only UI changes are not patched directly by clients.
 };
 
 const getDynamicFile = (path) => getDynamicFileBase(path, state);
