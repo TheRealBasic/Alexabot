@@ -77,6 +77,7 @@ body {
   color: var(--color-text);
   position: relative;
   user-select: none;
+  transition: filter var(--duration-base) ease, transform var(--duration-base) ease;
 }
 
 .desktop-icons {
@@ -169,10 +170,24 @@ body {
   width: 260px;
   background: #08131e;
   border: 1px solid #3b5f7d;
-  display: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px) scale(0.98);
+  pointer-events: none;
+  transform-origin: bottom left;
   z-index: 45;
   box-shadow: var(--elevation-1);
   padding: var(--space-2);
+  transition: opacity var(--duration-fast) ease, transform var(--duration-fast) ease, visibility 0s linear var(--duration-fast);
+}
+
+
+.start-menu.is-open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+  transition-delay: 0s;
 }
 
 .start-menu-header {

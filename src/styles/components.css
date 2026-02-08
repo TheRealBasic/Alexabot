@@ -133,11 +133,13 @@
   gap: var(--space-1);
   transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease,
     transform var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+  will-change: transform;
 }
 
 .icon:hover {
   color: #e5eff8;
   background: rgba(74, 108, 140, 0.2);
+  transform: translateY(-1px);
 }
 
 .icon .glyph {
@@ -186,6 +188,7 @@
 .task:hover {
   background: #17344f;
   border-color: #3c6488;
+  transform: translateY(-1px);
 }
 
 .task.is-active {
@@ -210,10 +213,12 @@
   color: #d2dfed;
   transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease,
     transform var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+  will-change: transform;
 }
 
 .start-item:hover {
   background: rgba(88, 130, 168, 0.15);
+  transform: translateX(2px);
 }
 
 .window {
@@ -228,10 +233,27 @@
   z-index: 10;
   min-width: 280px;
   min-height: 200px;
+  transition: box-shadow var(--duration-fast) ease, border-color var(--duration-fast) ease,
+    transform var(--duration-fast) ease, opacity var(--duration-fast) ease;
+  will-change: transform;
 }
 
 .window[data-state="maximized"] {
   border-color: #4f7398;
+}
+
+.window.is-focused {
+  box-shadow: 0 12px 32px rgba(3, 8, 14, 0.55), 0 0 0 1px rgba(121, 162, 195, 0.24);
+}
+
+.window[data-interaction="minimized"] {
+  opacity: 0.6;
+  transform: translateY(8px) scale(0.98);
+}
+
+.window[data-interaction="normal"],
+.window[data-interaction="maximized"] {
+  animation: window-restore 220ms ease-out;
 }
 
 .titlebar {
@@ -509,6 +531,11 @@ textarea {
   font-size: var(--font-size-sm);
   padding: var(--space-3) var(--space-4);
   box-shadow: var(--elevation-1);
+  animation: toast-in 220ms ease-out;
+}
+
+.toast.is-exiting {
+  animation: toast-out 220ms ease-in forwards;
 }
 
 

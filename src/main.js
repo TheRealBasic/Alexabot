@@ -117,7 +117,8 @@ const notify = (message, { actor } = {}) => {
   toast.className = "toast";
   toast.textContent = actor ? `[${actor}] ${message}` : message;
   notificationCenter.appendChild(toast);
-  setTimeout(() => toast.remove(), 2800);
+  setTimeout(() => toast.classList.add("is-exiting"), 2500);
+  setTimeout(() => toast.remove(), 2750);
 };
 
 const presentation = createPresentationController({
@@ -444,7 +445,7 @@ function initDesktop() {
     item.type = "button";
     item.textContent = app.name;
     item.onclick = () => {
-      startMenu.style.display = "none";
+      startMenu.classList.remove("is-open");
       app.open();
     };
     startMenuItems.appendChild(item);
@@ -478,17 +479,17 @@ function initDesktop() {
   startMenuItems.appendChild(shutdown);
 
   startBtn.onclick = () => {
-    startMenu.style.display = startMenu.style.display === "block" ? "none" : "block";
+    startMenu.classList.toggle("is-open");
   };
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") startMenu.style.display = "none";
+    if (e.key === "Escape") startMenu.classList.remove("is-open");
   });
 
   desktopRoot.onclick = (e) => {
     const target = e.target;
     if (!(target instanceof Element)) return;
-    if (!target.closest("#startMenu") && !target.closest("#startBtn")) startMenu.style.display = "none";
+    if (!target.closest("#startMenu") && !target.closest("#startBtn")) startMenu.classList.remove("is-open");
   };
 
   setInterval(() => {

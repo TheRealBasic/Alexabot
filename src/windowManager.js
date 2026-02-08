@@ -49,6 +49,7 @@ export function createWindowManager({ desktopRoot, taskList, state = null, persi
       const isActive = id === activeWindowId && win.state !== "minimized";
       win.task.classList.toggle("is-active", isActive);
       win.task.classList.toggle("is-minimized", win.state === "minimized");
+      win.el.classList.toggle("is-focused", isActive);
     }
   }
 
@@ -134,6 +135,10 @@ export function createWindowManager({ desktopRoot, taskList, state = null, persi
     }
 
     win.el.dataset.state = win.state;
+    win.el.dataset.interaction = nextState;
+    requestAnimationFrame(() => {
+      win.el.dataset.interaction = "idle";
+    });
     updateTaskStates();
     applyWindowHealth(win);
     persistWindow(win);

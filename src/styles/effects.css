@@ -67,10 +67,48 @@
 }
 
 
+
+@keyframes window-restore {
+  0% {
+    transform: translateY(8px) scale(0.985);
+    opacity: 0.78;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toast-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   #desktopRoot.fx-flicker,
   #desktopRoot.fx-scanline-shift::before,
-  .taskbar.fx-warning-pulse {
+  .taskbar.fx-warning-pulse,
+  .window[data-interaction="normal"],
+  .window[data-interaction="maximized"],
+  .toast,
+  .toast.is-exiting {
     animation: none !important;
   }
 }
