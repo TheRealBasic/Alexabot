@@ -37,6 +37,7 @@ test('progress signature is stable and sorted', () => {
 
 test('active objectives are filtered by role', () => {
   const state = makeState();
+  state.sessionMode = 'coop';
   const operatorObjectives = getActiveObjectives(state, 'operator').map((o) => o.id);
   const observerObjectives = getActiveObjectives(state, 'observer').map((o) => o.id);
 
@@ -45,6 +46,29 @@ test('active objectives are filtered by role', () => {
   assert.ok(observerObjectives.includes('observer_ping_operator'));
 });
 
+
+test('solo mode hides co-op only objectives from active queue', () => {
+  const state = makeState();
+  state.sessionMode = 'solo';
+
+  const operatorObjectives = getActiveObjectives(state, 'operator').map((o) => o.id);
+  const observerObjectives = getActiveObjectives(state, 'observer').map((o) => o.id);
+
+  assert.ok(!operatorObjectives.includes('operator_execute_relay'));
+  assert.ok(!observerObjectives.includes('observer_ping_operator'));
+  assert.ok(!observerObjectives.includes('observer_anomaly_trace'));
+});
+
+test('co-op mode retains co-op only objectives for the matching role', () => {
+  const state = makeState();
+  state.sessionMode = 'coop';
+
+  const operatorObjectives = getActiveObjectives(state, 'operator').map((o) => o.id);
+  const observerObjectives = getActiveObjectives(state, 'observer').map((o) => o.id);
+
+  assert.ok(operatorObjectives.includes('operator_execute_relay'));
+  assert.ok(observerObjectives.includes('observer_ping_operator'));
+});
 test('applyProgressionFlags restores ai memory defaults', () => {
   const state = { bootCount: 0, driftMinutes: 0 };
   applyProgressionFlags(state);

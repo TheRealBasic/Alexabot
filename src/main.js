@@ -375,6 +375,7 @@ function mountObjectivePanel() {
 
   const render = () => {
     const active = getActiveObjectives(state, state.activeRole);
+    const isCoop = state.sessionMode === "coop";
     const teammateRole = state.activeRole === "operator" ? "observer" : "operator";
     const teammateId = state.roles?.[teammateRole] || "unassigned";
     const teammateActivity = [...(state.terminalHistory || [])]
@@ -385,16 +386,20 @@ function mountObjectivePanel() {
           ? `Relay handoff acknowledged by ${state.relaySignal.resolvedBy}.`
           : `Relay handoff pending (${Math.max(0, Math.ceil((state.relaySignal.expiresAt - Date.now()) / 1000))}s remaining).`)
       : COPY.shell.objectives.activeRelay;
+    const coopTelemetry = isCoop
+      ? `<div class="kv-row"><span class="kv-key">${COPY.shell.objectives.teammate}</span><span class="kv-value">${teammateRole}: ${teammateId}</span></div>
+        <div class="kv-row"><span class="kv-key">activity</span><span class="kv-value">${teammateActivity ? teammateActivity.command : COPY.shell.objectives.noTeammateActivity}</span></div>`
+      : "";
+    const relayNotice = isCoop ? `<div class="notice">${relayCue}</div>` : "";
     panel.innerHTML = `
       <div class="system-label">mission telemetry</div>
       <div class="objective-title">${getChapterLabel(state.chapter)}</div>
       <div class="objective-subtitle">${COPY.shell.objectives.panelRole}: <span class="status-badge active">${state.activeRole}</span></div>
       <div class="kv-diagnostics">
         <div class="kv-row"><span class="kv-key">${COPY.shell.objectives.trust}</span><span class="kv-value">${state.teamTrustScore || 0}</span></div>
-        <div class="kv-row"><span class="kv-key">${COPY.shell.objectives.teammate}</span><span class="kv-value">${teammateRole}: ${teammateId}</span></div>
-        <div class="kv-row"><span class="kv-key">activity</span><span class="kv-value">${teammateActivity ? teammateActivity.command : COPY.shell.objectives.noTeammateActivity}</span></div>
+        ${coopTelemetry}
       </div>
-      <div class="notice">${relayCue}</div>
+      ${relayNotice}
       <div class="objective-subtitle">${COPY.shell.objectives.activeObjectives}</div>
       <ul>${active.map((objective) => `<li><span class="status-badge">${(objective.roles || ["operator"]).join("/")}</span> ${objective.label}</li>`).join("") || `<li>${COPY.shell.objectives.allDone}</li>`}</ul>
     `;
