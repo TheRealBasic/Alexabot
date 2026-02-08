@@ -216,9 +216,9 @@ export function createWindowManager({ desktopRoot, taskList, state = null, persi
       const record = [...windows.values()].find((entry) => entry.el === win);
       if (!record || record.state !== "normal") return;
       dragState = {
-        win,
-        ox: e.clientX - win.offsetLeft,
-        oy: e.clientY - win.offsetTop
+        win: record,
+        ox: e.clientX - record.el.offsetLeft,
+        oy: e.clientY - record.el.offsetTop
       };
       bar.setPointerCapture?.(e.pointerId);
       focusWindow(win);
@@ -319,7 +319,7 @@ export function createWindowManager({ desktopRoot, taskList, state = null, persi
     };
 
     el.querySelector("[data-close]").onclick = () => {
-      if (dragState?.win === el) dragState = null;
+      if (dragState?.win?.el === el) dragState = null;
       if (resizeState?.win === win) resizeState = null;
       el.remove();
       task.remove();
