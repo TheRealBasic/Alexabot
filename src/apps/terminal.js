@@ -28,7 +28,7 @@ function actorLabel(actor) {
 
 function canRunCommand(role, cmd) {
   if (role === "operator") return true;
-  const observerAllowed = new Set(["help", "pwd", "history", "date", "ls", "cd", "cat", "clear", "whoami", "anomaly-hint", "ping"]);
+  const observerAllowed = new Set(["help", "pwd", "history", "date", "ls", "cd", "cat", "clear", "whoami", "anomaly-hint", "ping", "ps", "service", "pkg", "appinfo", "net", "tail", "top-lite"]);
   return observerAllowed.has(cmd);
 }
 
@@ -105,6 +105,31 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       print(lines.join("\n"));
     }
 
+
+    function printProcessTable() {
+      const services = [
+        ["101", "archive-daemon", state.chapter >= 2 ? "degraded" : "active"],
+        ["118", "rtc-sync", "active"],
+        ["126", "relay-link", state.sessionMode === "coop" ? "active" : "idle"],
+        ["155", "audit-indexer", state.chapter >= 3 ? "active" : "idle"]
+      ];
+      print(["PID   NAME             STATE", ...services.map((row) => `${row[0].padEnd(5)} ${row[1].padEnd(16)} ${row[2]}`)].join("\n"));
+    }
+
+    function serviceStatus(name = "") {
+      const map = {
+        "archive-daemon": "state=degraded; queued repairs=2",
+        "rtc-sync": "state=active; drift_monitor=enabled",
+        "relay-link": "state=active; heartbeat=ok",
+        "audit-indexer": "state=idle; backlog=3"
+      };
+      if (!name) {
+        print(Object.entries(map).map(([k,v]) => `${k}: ${v}`).join("\n"));
+        return;
+      }
+      print(map[name] ? `${name}: ${map[name]}` : "service: unknown unit");
+    }
+
     function handle(cmdLine) {
       if (!cmdLine) return;
       const [cmd, ...args] = cmdLine.split(/\s+/);
@@ -160,6 +185,33 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
           }
           for (const line of result?.terminalLines || []) print(line);
         }
+      } else if (cmd === "ps" || cmd === "top-lite") {
+        printProcessTable();
+      } else if (cmd === "service" && args[0] === "status") {
+        serviceStatus(args[1]);
+      } else if (cmd === "service" && args[0] === "restart") {
+        if (role !== "operator") print("service restart: restricted to operator");
+        else print(`service ${args[1] || "(missing)"}: restart queued`);
+      } else if (cmd === "pkg" && args[0] === "list") {
+        print(getDynamicFile("/var/lib/pkg/status") || "pkg database unavailable");
+      } else if (cmd === "pkg" && args[0] === "history") {
+        print(getDynamicFile("/var/lib/pkg/history.log") || "pkg history unavailable");
+      } else if (cmd === "appinfo") {
+        const table = {
+          "legacy-shell": "legacy-shell 1.4.2 // terminal environment",
+          "signal-tools": "signal-tools 0.9.1 // media diagnostics",
+          "calendar-lite": "calendar-lite 2.0.0 // removed"
+        };
+        print(table[args[0]] || "appinfo: package not found");
+      } else if (cmd === "net" && args[0] === "status") {
+        print("link: up\nlease: 10.0.4.23\nknown-ssid: Eidolon-Lab");
+      } else if (cmd === "net" && args[0] === "history") {
+        print(getDynamicFile("/etc/network/lease.history") || "network history unavailable");
+      } else if (cmd === "tail") {
+        const p = normalizePath(cwd, args[0]);
+        const body = getDynamicFile(p);
+        if (!body) print("tail: file not found");
+        else print(String(body).split("\n").slice(-8).join("\n"));
       } else if (cmd === "whoami") print(role);
       else if (cmd === "reset-session") {
         clearState();

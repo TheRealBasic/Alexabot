@@ -21,3 +21,12 @@ test('directory entries are sorted', () => {
   const sorted = [...entries].sort((a, b) => a.localeCompare(b));
   assert.deepEqual(entries, sorted);
 });
+
+
+test('includes non-story OS directories at root', () => {
+  const state = makeState();
+  const entries = getDirectoryEntries('/', state);
+  assert.ok(entries.includes('var'));
+  assert.ok(entries.includes('etc'));
+  assert.ok(entries.includes('proc'));
+});

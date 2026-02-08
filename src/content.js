@@ -1,7 +1,7 @@
 export const fs = {
-  "/": ["home", "system", "logs", "media", ".cache"],
+  "/": ["home", "system", "logs", "media", ".cache", "var", "proc", "etc", "tmp", "backup_2023", "trash"],
   "/home": ["operator", "guest"],
-  "/home/operator": ["desktop", "docs", "mail", "drafts", "notes.txt"],
+  "/home/operator": ["desktop", "Desktop", "docs", "mail", "drafts", "Documents", "Downloads", ".config", ".cache", ".local", "notes.txt", ".bash_history", ".profile"],
   "/home/operator/desktop": ["todo.txt", "family_photo.jpg", "readme.url"],
   "/home/operator/docs": ["continuity_overview.txt", "meeting_minutes_2003-04-17.txt", "statement_draft.txt", "act2_transition.txt", "act3_transition.txt"],
   "/home/operator/mail": ["inbox_03.mbox", "unsent_7.eml"],
@@ -11,8 +11,34 @@ export const fs = {
   "/system/help": ["shell_help.txt", "recovery_help.txt", "known_issues.txt"],
   "/logs": ["kernel.log", "session.log", "incident.log", "audit_redacted.log", "final_directive.log", "diagnostics"],
   "/logs/diagnostics": ["last_boot_report.log", "panic_fragment.log"],
-  "/media": ["lullaby.wav", "hallway_capture.avi", "cam2_20030418.dat"],
-  "/.cache": ["profile.snapshot", "shadow.idx", "deleted_manifest.tmp"]
+  "/media": ["lullaby.wav", "hallway_capture.avi", "cam2_20030418.dat", "usb_old"],
+  "/.cache": ["profile.snapshot", "shadow.idx", "deleted_manifest.tmp"],
+  "/home/operator/Documents": ["budget_2002.csv", "report_final_v2_FINAL.txt", "scan_receipt_0412.txt"],
+  "/home/operator/Downloads": ["codec_pack_legacy.exe", "printer_driver_old.zip", "meeting_export (copy).txt"],
+  "/home/operator/Desktop": ["Screenshot_0311.png", "Draft Letter.txt"],
+  "/home/operator/.config": ["editor.conf", "calendar.json", "network.json"],
+  "/home/operator/.cache": ["thumbs.idx", "render.tmp", "session.restore"],
+  "/home/operator/.local": ["share"],
+  "/home/operator/.local/share": ["recent-files.log", "mimeapps.list"],
+  "/trash": ["old_note.txt", "diagnostics (1).log"],
+  "/var": ["log", "lib", "cache", "spool"],
+  "/var/log": ["auth.log", "syslog", "syslog.1", "network.log", "updater.log", "mount.log", "print.log"],
+  "/var/lib": ["pkg"],
+  "/var/lib/pkg": ["status", "history.log"],
+  "/var/cache": ["pkg"],
+  "/var/cache/pkg": ["archives"],
+  "/var/cache/pkg/archives": ["legacy-shell_1.4.2.pkg", "signal-tools_0.9.1.pkg"],
+  "/var/spool": ["cron", "print"],
+  "/var/spool/cron": ["operator.tab"],
+  "/var/spool/print": ["queue-044.job"],
+  "/proc": ["services", "uptime", "memory"],
+  "/proc/services": ["archive-daemon", "rtc-sync", "relay-link", "audit-indexer"],
+  "/etc": ["fstab", "hosts", "network"],
+  "/etc/network": ["known_wifi.conf", "lease.history"],
+  "/media/usb_old": ["camera_dump_2001.zip", "family_scan_2.png"],
+  "/backup_2023": ["notes.txt.bak", "users.db.bak"],
+  "/tmp": ["recovery", "session-migrate.log"],
+  "/tmp/recovery": ["cleanup_report.txt", "orphaned_refs.txt"]
 };
 
 export const files = {
@@ -34,7 +60,7 @@ export const files = {
   "/home/guest/note.txt": "guest account disabled on request of 'operator'",
   "/system/boot.cfg": "KERNEL=/boot/kernel.img\nRECOVERY=true\nSILENT=false\nOBSERVER=enabled",
   "/system/users.db": "operator:x:1000:1000\nguest:x:1001:1001 [locked]\narchive:?:?:?",
-  "/system/help/shell_help.txt": "Commands: help, ls, cd, cat, clear, pwd, unlock archive, set-time HH:MM, recover --manifest, strings <file>, whoami, history, date, anomaly-hint, ping operator, relay exec <code>, reset-session",
+  "/system/help/shell_help.txt": "Commands: help, ls, cd, cat, clear, pwd, unlock archive, set-time HH:MM, recover --manifest, strings <file>, whoami, history, date, anomaly-hint, ping operator, relay exec <code>, ps, service status, service restart <name>, pkg list, pkg history, appinfo <name>, net status, net history, tail <file>, reset-session",
   "/system/help/recovery_help.txt": "To restore deleted objects:\n1) access /.cache/deleted_manifest.tmp\n2) run: recover --manifest\nNote: command denied outside maintenance window 03:11-03:13",
   "/system/help/known_issues.txt": "Issue #44: clock drift exactly 47 minutes after outage.\nIssue #51: session daemon may address user by previous name.",
   "/system/drivers": "[directory listing hidden]",
@@ -49,7 +75,55 @@ export const files = {
   "/media/cam2_20030418.dat": "unrecognized binary blob",
   "/.cache/profile.snapshot": "typing_latency=193ms\nbackspace_ratio=0.18\nhesitation_before_submit=760ms",
   "/.cache/shadow.idx": "operator|operator|operator|[null]|operator",
-  "/.cache/deleted_manifest.tmp": "deleted:/home/operator/docs/postmortem.txt\ndeleted:/home/operator/mail/draft_9.eml"
+  "/.cache/deleted_manifest.tmp": "deleted:/home/operator/docs/postmortem.txt\ndeleted:/home/operator/mail/draft_9.eml",
+  "/home/operator/Documents/budget_2002.csv": "month,ops,lab,misc\nJan,4300,2100,320\nFeb,4280,2230,280",
+  "/home/operator/Documents/report_final_v2_FINAL.txt": "Continuity summary export.\nAction items migrated to new tracker.\nTODO: remove duplicate appendices.",
+  "/home/operator/Documents/scan_receipt_0412.txt": "Scanner Queue #0412\nStatus: completed\nPages: 3",
+  "/home/operator/Downloads/codec_pack_legacy.exe": "[binary] signature expired 2002-12-09",
+  "/home/operator/Downloads/printer_driver_old.zip": "archive contains: printer.inf, readme.txt, uninstall.bat",
+  "/home/operator/Downloads/meeting_export (copy).txt": "Meeting export duplicate copy created after transfer conflict.",
+  "/home/operator/Desktop/Screenshot_0311.png": "[binary PNG] screenshot metadata: 03:11 clock sync",
+  "/home/operator/Desktop/Draft Letter.txt": "Dear Facilities,\nPlease ignore the fan noise near rack B.\nRegards,\nOperator",
+  "/home/operator/.profile": "USER=operator\nHOST=eidolon-ws3\nTZ=UTC-05",
+  "/home/operator/.bash_history": "ls\ncat /logs/session.log\nset-time 03:11\nrecover --manifest",
+  "/home/operator/.config/editor.conf": "theme=amber-crt\nwordwrap=true",
+  "/home/operator/.config/calendar.json": "{\n  \"reminders\": [\"Battery check\", \"Audit handoff\"]\n}",
+  "/home/operator/.config/network.json": "{\n  \"preferred\": \"Eidolon-Lab\",\n  \"fallback\": \"Guest-Bridge\"\n}",
+  "/home/operator/.cache/thumbs.idx": "thumb-cache entries: 42",
+  "/home/operator/.cache/render.tmp": "stale render buffer",
+  "/home/operator/.cache/session.restore": "last apps: explorer, terminal, notes",
+  "/home/operator/.local/share/recent-files.log": "/home/operator/docs/statement_draft.txt\n/logs/incident.log",
+  "/home/operator/.local/share/mimeapps.list": "text/plain=notes.desktop;",
+  "/trash/old_note.txt": "deleted note fragment",
+  "/trash/diagnostics (1).log": "old boot diagnostics copy",
+  "/var/log/auth.log": "Apr 19 03:10 login ok: operator\nApr 19 03:12 auth token refresh",
+  "/var/log/syslog": "Apr 19 03:11 rtc-sync: drift corrected\nApr 19 03:13 relay-link: keepalive ok",
+  "/var/log/syslog.1": "Apr 18 23:48 updater: retry scheduled",
+  "/var/log/network.log": "link up: eth0\ndhcp renew lease: 10.0.4.23",
+  "/var/log/updater.log": "channel stable-legacy\nlast attempt: failed checksum",
+  "/var/log/mount.log": "usb_old mounted on /media/usb_old\nusb_old unmounted unexpectedly",
+  "/var/log/print.log": "queue-044 submitted\nqueue-044 waiting for toner",
+  "/var/lib/pkg/status": "legacy-shell 1.4.2 installed\nsignal-tools 0.9.1 installed\ncalendar-lite 2.0.0 removed",
+  "/var/lib/pkg/history.log": "2003-02-12 install legacy-shell\n2003-03-01 remove calendar-lite",
+  "/var/spool/cron/operator.tab": "11 3 * * * /usr/bin/rtc-sync --soft",
+  "/var/spool/print/queue-044.job": "printer=lab-prn-02\nstate=held",
+  "/proc/uptime": "48213.22 1203.77",
+  "/proc/memory": "MemTotal: 262144 kB\nMemFree: 43120 kB",
+  "/proc/services/archive-daemon": "state=degraded\nlast_restart=03:10:12",
+  "/proc/services/rtc-sync": "state=active\nlast_restart=03:10:50",
+  "/proc/services/relay-link": "state=active\nlast_restart=03:11:02",
+  "/proc/services/audit-indexer": "state=idle\nlast_restart=03:09:34",
+  "/etc/fstab": "UUID=SYS / ext4 defaults 0 1\n/dev/usb_old /media/usb_old auto noauto 0 0",
+  "/etc/hosts": "127.0.0.1 localhost\n10.0.4.10 archive-node\n10.0.4.11 relay-node",
+  "/etc/network/known_wifi.conf": "Eidolon-Lab\nGuest-Bridge\nArchive-Offsite",
+  "/etc/network/lease.history": "10.0.4.21 -> 10.0.4.23",
+  "/media/usb_old/camera_dump_2001.zip": "[archive] 14 files, partially readable",
+  "/media/usb_old/family_scan_2.png": "[binary PNG]",
+  "/backup_2023/notes.txt.bak": "backup created before migration",
+  "/backup_2023/users.db.bak": "operator:x:1000:1000",
+  "/tmp/session-migrate.log": "migration started\nmigration interrupted\nresume token missing",
+  "/tmp/recovery/cleanup_report.txt": "cleanup partial: 8/19 files pruned",
+  "/tmp/recovery/orphaned_refs.txt": "missing: /home/operator/Desktop/old_map.png"
 };
 
 
@@ -91,6 +165,15 @@ function getTrustTrajectory(state) {
 }
 
 export function rehydrateContentFromState(state) {
+
+  const residueSets = [
+    ["crashdump_01.tmp", "whiteboard_photo.jpg"],
+    ["payroll_export_old.csv", "keymap_notes.txt"],
+    ["installer_copy (2).exe", "voice_memo_rough.txt"]
+  ];
+  const residue = residueSets[(Number(state.sessionId) || 0) % residueSets.length];
+  for (const file of residue) ensureEntry("/home/operator/Downloads", file);
+
   if (state.recoveredFiles) {
     ensureEntry("/home/operator/docs", "postmortem.txt");
     ensureEntry("/home/operator/mail", "draft_9.eml");
@@ -150,6 +233,14 @@ export function getDynamicFile(path, state) {
   if (path === "/logs/diagnostics/panic_fragment.log") {
     return state.panicFragment || "panic fragment not recorded";
   }
+  if (path === "/home/operator/.profile") {
+    const p = state.userProfile || {};
+    return `USER=${p.username || "operator"}\nHOST=${p.hostname || "eidolon-ws3"}\nTZ=${p.timezone || "UTC-05"}\nKBD=${p.keyboardLayout || "us-intl"}`;
+  }
+  if (path === "/home/operator/.config/network.json") {
+    const p = state.userProfile || {};
+    return `{\n  \"preferred\": \"Eidolon-Lab\",\n  \"timezone\": \"${p.timezone || "UTC-05"}\",\n  \"hostname\": \"${p.hostname || "eidolon-ws3"}\"\n}`;
+  }
   if (path === "/logs/final_directive.log" && state.chapter >= 3) {
     const trustRoute = getTrustTrajectory(state);
     if (trustRoute === "high") {
@@ -171,5 +262,13 @@ export function getDynamicFile(path, state) {
   if (path === "/home/operator/docs/stability_note.txt" && state.reactionFlags?.syntheticCorrespondence) {
     return "Behavior Stability Note\nRepeated checks of the same files are interpreted as distress.\nCorrective narration has been enabled.";
   }
+
+  if (path.endsWith("crashdump_01.tmp")) return "binary dump fragment [non-critical]";
+  if (path.endsWith("whiteboard_photo.jpg")) return "[binary JPEG] marker board with unreadable equations";
+  if (path.endsWith("payroll_export_old.csv")) return "name,hours\noperator,38\nobserver,12";
+  if (path.endsWith("keymap_notes.txt")) return "legacy shortcuts: alt+tab, ctrl+shift+l";
+  if (path.endsWith("installer_copy (2).exe")) return "[binary] duplicate installer copy";
+  if (path.endsWith("voice_memo_rough.txt")) return "transcript stub: check hallway mic gain";
+
   return files[path];
 }

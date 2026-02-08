@@ -21,6 +21,13 @@ test('view counter increments', () => {
   assert.equal(state.viewed['/logs/incident.log'], 2);
 });
 
+test('tracks recent file opens when incrementing view count', () => {
+  const state = makeState();
+  incrementFileView(state, '/logs/incident.log');
+  assert.equal(state.recentFiles.length, 1);
+  assert.equal(state.recentFiles[0].path, '/logs/incident.log');
+});
+
 test('progress signature is stable and sorted', () => {
   const state = makeState();
   state.completedObjectives = ['b', 'a'];
