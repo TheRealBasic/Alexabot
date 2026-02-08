@@ -203,6 +203,14 @@ Run the test suite when validating behavior and regression risk:
 npm test
 ```
 
+Run coverage with Node's built-in test runner coverage flags:
+
+```bash
+npm run test:coverage
+```
+
+Coverage thresholds are enforced globally (lines/functions/branches) and CI will fail if coverage drops below the configured baseline.
+
 The repository uses Node's built-in test runner (`node --test`).
 
 ## Style & UI Consistency Notes
