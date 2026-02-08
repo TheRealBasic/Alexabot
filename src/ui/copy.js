@@ -57,10 +57,62 @@ export const COPY = {
     calculator: "Desk Calculator",
     calendar: "Calendar Lite",
     sysmon: "System Monitor",
+    simulation: "Simulation Console",
     menuLabel: "Program Launcher",
     reset: "Reset Workstation",
     restart: "Restart Workstation",
     crash: "Force Kernel Crash"
+  },
+  simulation: {
+    panelLabel: "scenario simulator",
+    scenarioLabel: "Scenario",
+    scenarioTooltip: "Choose a simulation scenario.",
+    seedLabel: "Seed",
+    seedTooltip: "Use a deterministic numeric seed.",
+    seedPlaceholder: "Seed value",
+    timelineLabel: "Timeline",
+    compareLabel: "Branch Comparator",
+    branchA: "Branch A",
+    branchB: "Branch B",
+    none: "none",
+    metric: "Metric",
+    emptyTimeline: "No events yet. Start and step a run to populate the timeline.",
+    started: "Simulation started: {scenario} (seed {seed}).",
+    stepped: "Step applied: {eventType} on {branch}.",
+    forked: "Created branch {label}.",
+    resetDone: "Simulation state reset.",
+    exported: "Exported simulation summary to {filename}.",
+    forkPrompt: "Enter a branch label",
+    forkDefault: "alternate-branch",
+    controls: {
+      start: "Start",
+      step: "Step",
+      fork: "Fork",
+      reset: "Reset",
+      export: "Export Summary"
+    },
+    status: {
+      run: "Run",
+      branch: "Branch",
+      events: "Events",
+      confidence: "Confidence"
+    },
+    metrics: {
+      trust: "Trust score",
+      conflict: "Conflict score",
+      pressure: "Pressure",
+      success: "Success rate",
+      events: "Event count"
+    },
+    notifications: {
+      criticalDivergence: "Critical divergence detected ({divergence}) between {branchA} and {branchB}.",
+      runComplete: "Simulation {runId} completed ({eventCount} events; trust {trust}; conflict {conflict})."
+    },
+    errors: {
+      startFailed: "Simulation start failed: {message}",
+      stepFailed: "Simulation step failed: {message}",
+      forkFailed: "Simulation fork failed: {message}"
+    }
   },
   explorer: {
     deniedAudit: "<span class='err'>ERR-AUTH-403</span>\nOperator note: align RTC with maintenance marker 03:11 in Workstation Settings.",

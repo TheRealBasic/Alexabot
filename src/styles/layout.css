@@ -256,3 +256,58 @@ body {
 .lobby-item:last-child {
   margin-bottom: 0;
 }
+
+.simulation-console {
+  grid-template-columns: 300px 1fr;
+  grid-template-rows: auto 1fr;
+  gap: var(--space-2);
+  height: 100%;
+}
+
+.simulation-config {
+  grid-row: 1 / span 2;
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.sim-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.sim-controls .btn-primary,
+.simulation-config .btn-secondary {
+  width: 100%;
+  margin-top: 0;
+}
+
+.simulation-timeline-panel,
+.simulation-compare-panel {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.simulation-timeline {
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid #27445e;
+  background: rgba(4, 14, 23, 0.6);
+  padding: 0 var(--space-2);
+}
+
+.simulation-branch-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.simulation-branch-controls .field-legend {
+  margin-top: 0;
+}
+
+.simulation-status .kv-diagnostics {
+  margin-top: 0;
+}
