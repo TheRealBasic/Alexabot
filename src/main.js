@@ -18,6 +18,9 @@ import { openMedia } from "./apps/media.js";
 import { openSettings } from "./apps/settings.js";
 import { openHelp } from "./apps/help.js";
 import { openChat } from "./apps/chat.js";
+import { openCalculator } from "./apps/calculator.js";
+import { openCalendar } from "./apps/calendar.js";
+import { openSystemMonitor } from "./apps/sysmon.js";
 import { createPresentationController } from "./presentation.js";
 import { getOnboardingChecklistItems } from "./onboarding.js";
 import { COPY } from "./ui/copy.js";
@@ -407,14 +410,26 @@ function mountOnboardingPanel() {
 }
 
 const apps = [
-  { name: COPY.apps.explorer, icon: "📁", roles: ["operator", "observer"], open: () => openExplorer(appContext) },
-  { name: COPY.apps.terminal, icon: "⌨", roles: ["operator", "observer"], open: () => openTerminal(appContext) },
-  { name: COPY.apps.notes, icon: "📝", roles: ["operator", "observer"], open: () => openNotes(appContext) },
-  { name: COPY.apps.media, icon: "▶", roles: ["operator"], open: () => openMedia(appContext) },
-  { name: COPY.apps.settings, icon: "⚙", roles: ["operator"], open: () => openSettings(appContext) },
-  { name: COPY.apps.help, icon: "?", roles: ["operator", "observer"], open: () => openHelp(appContext) },
-  { name: COPY.apps.chat, icon: "💬", roles: ["operator", "observer"], open: () => openChat(appContext) }
+  { id: "explorer", name: COPY.apps.explorer, icon: "📁", roles: ["operator", "observer"], open: () => openExplorer(appContext) },
+  { id: "terminal", name: COPY.apps.terminal, icon: "⌨", roles: ["operator", "observer"], open: () => openTerminal(appContext) },
+  { id: "notes", name: COPY.apps.notes, icon: "📝", roles: ["operator", "observer"], open: () => openNotes(appContext) },
+  { id: "media", name: COPY.apps.media, icon: "▶", roles: ["operator"], open: () => openMedia(appContext) },
+  { id: "settings", name: COPY.apps.settings, icon: "⚙", roles: ["operator"], open: () => openSettings(appContext) },
+  { id: "help", name: COPY.apps.help, icon: "?", roles: ["operator", "observer"], open: () => openHelp(appContext) },
+  { id: "chat", name: COPY.apps.chat, icon: "💬", roles: ["operator", "observer"], open: () => openChat(appContext) },
+  { id: "calculator", name: COPY.apps.calculator, icon: "🧮", roles: ["operator", "observer"], open: () => openCalculator(appContext) },
+  { id: "calendar", name: COPY.apps.calendar, icon: "📆", roles: ["operator", "observer"], open: () => openCalendar(appContext) },
+  { id: "sysmon", name: COPY.apps.sysmon, icon: "📈", roles: ["operator", "observer"], open: () => openSystemMonitor(appContext) }
 ];
+
+
+function openApp(app) {
+  app.open();
+  if (!Array.isArray(state.recentApps)) state.recentApps = [];
+  state.recentApps.push({ id: app.id || app.name, name: app.name, at: Date.now() });
+  state.recentApps = state.recentApps.slice(-20);
+  save();
+}
 
 function openStartupNotification() {
   const startupText = COPY.notifications.startup[Math.min(state.chapter - 1, 2)];
@@ -461,12 +476,12 @@ function initDesktop() {
     icon.innerHTML = `<div class="glyph" aria-hidden="true">${app.icon}</div><div class="system-label">${app.name}</div>`;
     icon.ondblclick = (e) => {
       e.preventDefault();
-      app.open();
+      openApp(app);
     };
     icon.onkeydown = (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        app.open();
+        openApp(app);
       }
     };
     desktopIcons.appendChild(icon);
@@ -477,7 +492,7 @@ function initDesktop() {
     item.textContent = app.name;
     item.onclick = () => {
       startMenu.classList.remove("is-open");
-      app.open();
+      openApp(app);
     };
     startMenuItems.appendChild(item);
   }

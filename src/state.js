@@ -70,6 +70,16 @@ export const defaultState = {
   },
   windowLayout: {},
   disableChatAnimations: false,
+  userProfile: {
+    username: "operator",
+    hostname: "eidolon-ws3",
+    timezone: "UTC-05",
+    keyboardLayout: "us-intl",
+    wallpaperChoice: "maintenance-grid",
+    lastLoginAt: "2003-04-19T03:11:00.000Z"
+  },
+  recentApps: [],
+  recentFiles: [],
   bootStage: "bios",
   lastBootServices: [],
   lastBootReport: null,
@@ -120,6 +130,16 @@ function ensureLifecycleState(state) {
   if (!Array.isArray(state.lifecycleHistory)) state.lifecycleHistory = [];
 }
 
+function ensureProfileState(state) {
+  if (!state.userProfile || typeof state.userProfile !== "object") {
+    state.userProfile = { ...defaultState.userProfile };
+  } else {
+    state.userProfile = { ...defaultState.userProfile, ...state.userProfile };
+  }
+  if (!Array.isArray(state.recentApps)) state.recentApps = [];
+  if (!Array.isArray(state.recentFiles)) state.recentFiles = [];
+}
+
 export function loadState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
@@ -159,6 +179,9 @@ export function incrementFileView(state, path) {
     state.viewed = {};
   }
   state.viewed[path] = (state.viewed[path] || 0) + 1;
+  if (!Array.isArray(state.recentFiles)) state.recentFiles = [];
+  state.recentFiles.push({ path, at: Date.now() });
+  state.recentFiles = state.recentFiles.slice(-24);
 }
 
 export function appendForensicTrace(state, category, detail, actor = state.activeRole || "operator") {
@@ -269,6 +292,7 @@ export function applyProgressionFlags(state) {
   ensureAiMemoryState(state);
   ensureManifestationState(state);
   ensureLifecycleState(state);
+  ensureProfileState(state);
   updateChapter(state);
   state.bootCount += 1;
   state.driftMinutes += (Math.random() < 0.4 ? (Math.random() < 0.5 ? -1 : 1) : 0);
