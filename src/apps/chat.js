@@ -106,6 +106,21 @@ const LEXICAL_SWAPS = {
 };
 
 const PUNCTUATION_JITTER = [".", ".", "...", "…", "!"];
+const MEMORY_LIMIT = 8;
+const MEMORY_TAG_LIMIT = 4;
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+export function ensureChatMemory(state = {}) {
+  if (typeof state.aiAffinity !== "number") state.aiAffinity = 0;
+  if (typeof state.aiParanoia !== "number") state.aiParanoia = 0;
+  if (typeof state.aiTrustInPlayer !== "number") state.aiTrustInPlayer = 0;
+  if (typeof state.aiContradictionCount !== "number") state.aiContradictionCount = 0;
+  if (!Array.isArray(state.aiLastTopics)) state.aiLastTopics = [];
+  state.aiLastTopics = state.aiLastTopics.slice(-MEMORY_LIMIT);
+}
 
 function hashString(value) {
   let hash = 2166136261;
@@ -159,6 +174,9 @@ export function analyzeMessage(message, state = {}) {
 
   const urgentSignals = /(please|urgent|now|quick|hurry|afraid|panic|!)/i.test(text);
   const skepticalSignals = /(why|sure|really|prove|doubt)/i.test(text);
+  const hostileSignals = /(shut\s*up|stupid|liar|lying|hate|idiot|worthless|threat|useless)/i.test(text);
+  const probingSignals = /(who\s+are\s+you|what\s+are\s+you|prove|evidence|explain|why|when|where|interrogat|questioning|archive\s+time\s+marker)/i.test(text);
+  const complianceSignals = /(okay|understood|thanks|thank\s+you|i\s+will|copy\s+that|agreed|got\s+it)/i.test(text);
   const emotionalTone = urgentSignals ? "urgent" : skepticalSignals ? "skeptical" : "neutral";
 
   const certaintyBoost = (lower.match(/\b(definitely|certain|sure|know|clear)\b/g) || []).length;
@@ -178,8 +196,45 @@ export function analyzeMessage(message, state = {}) {
     intentCue: intentMatch?.cue || "the current signal",
     emotionalTone,
     certainty,
-    repeatedTopic: repeatedTopics[0] || null
+    repeatedTopic: repeatedTopics[0] || null,
+    hostility: hostileSignals ? 1 : 0,
+    probing: probingSignals ? 1 : 0,
+    compliance: complianceSignals ? 1 : 0,
+    repetition: repeatedTopics.length > 0 ? 1 : 0,
+    topicTags: [...new Set([intent, ...currentTopics.slice(0, MEMORY_TAG_LIMIT)])]
   };
+}
+
+export function updateChatMemory(state = {}, features = {}) {
+  ensureChatMemory(state);
+
+  state.aiAffinity = clamp(state.aiAffinity * 0.92 + features.compliance * 1.3 - features.hostility * 1.6 - features.probing * 0.4, -6, 6);
+  state.aiParanoia = clamp(state.aiParanoia * 0.9 + features.probing * 1.4 + features.hostility * 1.2 + features.repetition * 0.8 - features.compliance * 0.6, 0, 8);
+  state.aiTrustInPlayer = clamp(state.aiTrustInPlayer * 0.9 + features.compliance * 1.1 - features.hostility * 1.3 - features.probing * 0.5, -6, 6);
+  state.aiContradictionCount = clamp(state.aiContradictionCount * 0.8 + (features.repetition && features.probing ? 1 : 0), 0, 6);
+
+  for (const tag of features.topicTags || []) {
+    if (!tag) continue;
+    if (!state.aiLastTopics.includes(tag)) state.aiLastTopics.push(tag);
+  }
+  state.aiLastTopics = state.aiLastTopics.slice(-MEMORY_LIMIT);
+}
+
+function buildRecallLine(state, features, rng) {
+  const topics = (state.aiLastTopics || []).slice(-MEMORY_TAG_LIMIT);
+  if (!topics.length) return "";
+
+  const candidate = topics.includes("archive") ? "archive" : pickOne(topics, rng);
+  if (!candidate) return "";
+
+  const userEntries = (state.chatHistory || []).filter((entry) => entry.role === "user");
+  const priorMention = [...userEntries].reverse().find((entry) => tokenize(entry.text).includes(candidate));
+
+  const shouldRecall = state.aiParanoia >= 3 || state.aiContradictionCount >= 2 || (features.repetition && rng() < 0.6);
+  if (!shouldRecall || !priorMention) return "";
+
+  const recallSeed = candidate === "archive" ? "Earlier you denied knowing the archive time marker." : `Earlier you circled back to ${candidate}.`;
+  return recallSeed;
 }
 
 export function buildContext(features, state = {}) {
@@ -187,6 +242,10 @@ export function buildContext(features, state = {}) {
   const activeRole = String(state.activeRole || "observer").toLowerCase();
   const trustMarker = Number(state.trust ?? state.trustMarker ?? 0);
   const conflictMarker = Number(state.conflict ?? state.conflictMarker ?? 0);
+
+  ensureChatMemory(state);
+  const memoryWarmth = Number(state.aiAffinity || 0) + Number(state.aiTrustInPlayer || 0);
+  const memorySuspicion = Number(state.aiParanoia || 0) + Number(state.aiContradictionCount || 0);
 
   const voiceWeights = {
     calm: 3,
@@ -207,6 +266,17 @@ export function buildContext(features, state = {}) {
     voiceWeights.possessive += 2;
     voiceWeights.fragmented += 1;
   }
+  if (memoryWarmth >= 4) {
+    voiceWeights.calm += 3;
+    voiceWeights.evasive = Math.max(1, voiceWeights.evasive - 1);
+  }
+  if (memorySuspicion >= 4) {
+    voiceWeights.evasive += 2;
+    voiceWeights.possessive += 1;
+  }
+  if (memorySuspicion >= 7) {
+    voiceWeights.fragmented += 2;
+  }
 
   const strategyWeights = {
     directive: 2,
@@ -220,6 +290,8 @@ export function buildContext(features, state = {}) {
   if (features.intent === "archive") strategyWeights.cryptic += 2;
   if (features.emotionalTone === "urgent") strategyWeights.warning += 2;
   if (features.certainty > 0.7) strategyWeights.directive += 1;
+  if (memoryWarmth >= 3) strategyWeights.relational += 2;
+  if (memorySuspicion >= 4) strategyWeights.warning += 2;
 
   return {
     chapter,
@@ -276,9 +348,13 @@ export function generateAiReply(message, state = {}, options = {}) {
   const text = String(message || "").trim();
   if (!text) return "The signal is clearer when you ask in specifics. Name the system and I will listen.";
 
+  ensureChatMemory(state);
   const features = analyzeMessage(text, state);
+  updateChatMemory(state, features);
   const context = buildContext(features, state);
-  return composeReply(features, context, options);
+  const coreReply = composeReply(features, context, options);
+  const recallLine = buildRecallLine(state, features, createRng(options.seed ? `${options.seed}:recall` : undefined));
+  return recallLine ? `${recallLine} ${coreReply}` : coreReply;
 }
 
 function pickBootGreeting(state = {}) {
@@ -291,6 +367,7 @@ function pickBootGreeting(state = {}) {
 export function openChat({ makeWindow, state, saveState }) {
   makeWindow("chat", COPY.apps.chat, (content, win) => {
     if (!Array.isArray(state.chatHistory)) state.chatHistory = [];
+    ensureChatMemory(state);
 
     content.innerHTML = `
       <div class="app-shell chat-app">
