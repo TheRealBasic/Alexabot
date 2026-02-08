@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeMessage, buildContext, composeReply, generateAiReply, updateChatMemory } from "../src/apps/chat.js";
+import { analyzeMessage, buildAssistantMessageSchedule, buildContext, composeReply, generateAiReply, generateAiReplyPacket, updateChatMemory } from "../src/apps/chat.js";
 
 test("analyzeMessage identifies intent, tone, certainty, and repeated topic", () => {
   const features = analyzeMessage("I need help now, maybe the archive is stuck!", {
@@ -126,4 +126,32 @@ test("generateAiReply uses variation slots for non-seeded calls", () => {
 
   const samples = new Set(Array.from({ length: 10 }, () => generateAiReply(message, state)));
   assert.ok(samples.size > 1);
+});
+
+
+test("buildAssistantMessageSchedule returns deterministic staged frames", () => {
+  const scheduleA = buildAssistantMessageSchedule("Signal held.", { mood: "fragmented", seed: "sched-seed" });
+  const scheduleB = buildAssistantMessageSchedule("Signal held.", { mood: "fragmented", seed: "sched-seed" });
+
+  assert.deepEqual(scheduleA, scheduleB);
+  assert.equal(scheduleA.at(-1).isFinal, true);
+  assert.equal(scheduleA.at(-1).text, "Signal held.");
+  assert.ok(scheduleA.length > 1);
+
+  for (let i = 1; i < scheduleA.length; i += 1) {
+    assert.ok(scheduleA[i].atMs >= scheduleA[i - 1].atMs);
+  }
+});
+
+test("buildAssistantMessageSchedule can short-circuit to instant output", () => {
+  const schedule = buildAssistantMessageSchedule("Instant", { instant: true, mood: "fragmented" });
+  assert.deepEqual(schedule, [{ atMs: 0, text: "Instant", isFinal: true }]);
+});
+
+test("generateAiReplyPacket includes mood metadata", () => {
+  const packet = generateAiReplyPacket("help me map the archive", { chapter: 2 }, { seed: "packet-seed" });
+
+  assert.equal(typeof packet.text, "string");
+  assert.ok(packet.text.length > 10);
+  assert.ok(["calm", "evasive", "possessive", "fragmented"].includes(packet.mood));
 });

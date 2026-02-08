@@ -108,6 +108,13 @@ const LEXICAL_SWAPS = {
 const PUNCTUATION_JITTER = [".", ".", "...", "…", "!"];
 const MEMORY_LIMIT = 8;
 const MEMORY_TAG_LIMIT = 4;
+const MOOD_TIMING = {
+  calm: { initialDelayMs: 180, tickMs: 44, charsPerTick: 2, glitchChance: 0.08 },
+  evasive: { initialDelayMs: 150, tickMs: 38, charsPerTick: 2, glitchChance: 0.12 },
+  possessive: { initialDelayMs: 130, tickMs: 34, charsPerTick: 3, glitchChance: 0.1 },
+  fragmented: { initialDelayMs: 90, tickMs: 26, charsPerTick: 4, glitchChance: 0.2 }
+};
+const GLITCH_GLYPHS = ["#", "%", "?", "*", "~", "░"];
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -341,7 +348,11 @@ export function composeReply(features, context, options = {}) {
       .replaceAll("{guidance}", context.guidance)
   );
 
-  return applyVariations(filledParts, rng);
+  const text = applyVariations(filledParts, rng);
+  if (options.includeMeta) {
+    return { text, mood: voiceMode, strategy };
+  }
+  return text;
 }
 
 export function generateAiReply(message, state = {}, options = {}) {
@@ -355,6 +366,71 @@ export function generateAiReply(message, state = {}, options = {}) {
   const coreReply = composeReply(features, context, options);
   const recallLine = buildRecallLine(state, features, createRng(options.seed ? `${options.seed}:recall` : undefined));
   return recallLine ? `${recallLine} ${coreReply}` : coreReply;
+}
+
+export function generateAiReplyPacket(message, state = {}, options = {}) {
+  const text = String(message || "").trim();
+  if (!text) {
+    return {
+      text: "The signal is clearer when you ask in specifics. Name the system and I will listen.",
+      mood: "calm"
+    };
+  }
+
+  ensureChatMemory(state);
+  const features = analyzeMessage(text, state);
+  updateChatMemory(state, features);
+  const context = buildContext(features, state);
+  const composed = composeReply(features, context, { ...options, includeMeta: true });
+  const recallLine = buildRecallLine(state, features, createRng(options.seed ? `${options.seed}:recall` : undefined));
+  return {
+    mood: composed.mood,
+    text: recallLine ? `${recallLine} ${composed.text}` : composed.text
+  };
+}
+
+function createGlitchVariant(text, rng) {
+  if (!text || text.length < 4) return text;
+  const chars = text.split("");
+  const swaps = Math.max(1, Math.round(text.length * (0.04 + rng() * 0.05)));
+
+  for (let i = 0; i < swaps; i += 1) {
+    const index = Math.floor(rng() * chars.length);
+    if (!/[a-z]/i.test(chars[index])) continue;
+    chars[index] = GLITCH_GLYPHS[Math.floor(rng() * GLITCH_GLYPHS.length)];
+  }
+  return chars.join("");
+}
+
+export function buildAssistantMessageSchedule(text, options = {}) {
+  const finalText = String(text || "");
+  const instant = Boolean(options.instant);
+  if (!finalText || instant) {
+    return [{ atMs: 0, text: finalText, isFinal: true }];
+  }
+
+  const mood = MOOD_TIMING[options.mood] ? options.mood : "calm";
+  const timing = MOOD_TIMING[mood];
+  const rng = createRng(options.seed);
+  const frames = [];
+
+  let elapsedMs = timing.initialDelayMs;
+  let revealed = 0;
+  while (revealed < finalText.length) {
+    const chunkBoost = Math.floor(rng() * 2);
+    revealed = Math.min(finalText.length, revealed + timing.charsPerTick + chunkBoost);
+    const stableText = finalText.slice(0, revealed);
+
+    if (revealed < finalText.length && rng() < timing.glitchChance) {
+      frames.push({ atMs: elapsedMs, text: createGlitchVariant(stableText, rng), isFinal: false, isGlitch: true });
+      elapsedMs += 40 + Math.floor(rng() * 35);
+    }
+
+    frames.push({ atMs: elapsedMs, text: stableText, isFinal: revealed >= finalText.length });
+    elapsedMs += timing.tickMs;
+  }
+
+  return frames;
 }
 
 function pickBootGreeting(state = {}) {
@@ -383,17 +459,31 @@ export function openChat({ makeWindow, state, saveState }) {
     const log = content.querySelector("#chatLog");
     const form = content.querySelector("#chatForm");
     const input = content.querySelector("#chatInput");
+    let transientAssistant = null;
+    let animationTimers = [];
+
+    const clearAnimationTimers = () => {
+      for (const timer of animationTimers) clearTimeout(timer);
+      animationTimers = [];
+    };
 
     const render = () => {
-      log.innerHTML = state.chatHistory
-        .slice(-30)
-        .map((entry) => `<div class="chat-bubble ${entry.role === "user" ? "chat-user" : "chat-ai"}"><span class="chat-author">${entry.role === "user" ? "You" : ASSISTANT_ENTITY_NAME}:</span> ${entry.text}</div>`)
+      const rows = state.chatHistory.slice(-30);
+      if (transientAssistant) rows.push(transientAssistant);
+
+      log.innerHTML = rows
+        .map((entry) => {
+          const isUser = entry.role === "user";
+          const moodClass = !isUser && entry.mood ? ` chat-ai--${entry.mood}` : "";
+          const streamClass = entry.streaming ? " chat-ai--streaming" : "";
+          return `<div class="chat-bubble ${isUser ? "chat-user" : "chat-ai"}${moodClass}${streamClass}"><span class="chat-author">${isUser ? "You" : ASSISTANT_ENTITY_NAME}:</span> ${entry.text}</div>`;
+        })
         .join("");
       log.scrollTop = log.scrollHeight;
     };
 
-    const pushMessage = (role, text) => {
-      state.chatHistory.push({ role, text, ts: Date.now() });
+    const pushMessage = (role, text, extras = {}) => {
+      state.chatHistory.push({ role, text, ts: Date.now(), ...extras });
       state.chatHistory = state.chatHistory.slice(-80);
     };
 
@@ -411,12 +501,34 @@ export function openChat({ makeWindow, state, saveState }) {
       if (!message) return;
 
       pushMessage("user", message);
-      const reply = generateAiReply(message, state);
-      pushMessage("assistant", reply);
       input.value = "";
       render();
-      saveState();
       win?.setHealth?.("active");
+
+      const packet = generateAiReplyPacket(message, state);
+      const reduceMotion = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      const instant = Boolean(state.disableChatAnimations || reduceMotion);
+      const schedule = buildAssistantMessageSchedule(packet.text, { mood: packet.mood, instant, seed: `${Date.now()}:${message}` });
+
+      clearAnimationTimers();
+      for (const frame of schedule) {
+        const timer = setTimeout(() => {
+          transientAssistant = {
+            role: "assistant",
+            text: frame.text,
+            mood: packet.mood,
+            streaming: !frame.isFinal
+          };
+
+          if (frame.isFinal) {
+            pushMessage("assistant", packet.text, { mood: packet.mood });
+            transientAssistant = null;
+            saveState();
+          }
+          render();
+        }, frame.atMs);
+        animationTimers.push(timer);
+      }
     };
   });
 }

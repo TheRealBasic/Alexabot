@@ -68,7 +68,8 @@ export const defaultState = {
     onboardingDismissed: false,
     onboardingDismissedChapter: 0
   },
-  windowLayout: {}
+  windowLayout: {},
+  disableChatAnimations: false
 };
 
 function ensureTrustState(state) {
@@ -78,6 +79,7 @@ function ensureTrustState(state) {
 }
 
 function ensureAiMemoryState(state) {
+  if (typeof state.disableChatAnimations !== "boolean") state.disableChatAnimations = false;
   if (typeof state.aiAffinity !== "number") state.aiAffinity = 0;
   if (typeof state.aiParanoia !== "number") state.aiParanoia = 0;
   if (typeof state.aiTrustInPlayer !== "number") state.aiTrustInPlayer = 0;

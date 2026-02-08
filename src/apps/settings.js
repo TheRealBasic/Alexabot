@@ -38,6 +38,14 @@ export function openSettings({ makeWindow, state, saveState, notify }) {
         </div>
         <div class='notice' id='serviceMsg'>controls constrained by narrative guardrails</div>
       </div>
+      <div class='panel-dense'>
+        <div class='field-legend'>${COPY.settings.animationTitle}</div>
+        <label class='settings-toggle'>
+          <input id='disableChatAnimations' type='checkbox' />
+          <span>${COPY.settings.animationToggle}</span>
+        </label>
+        <div class='notice'>${COPY.settings.animationHelp}</div>
+      </div>
     </div>`;
     win?.setHealth?.("active");
 
@@ -47,8 +55,10 @@ export function openSettings({ makeWindow, state, saveState, notify }) {
     const manual = content.querySelector("#manualTime");
     const servicesPanel = content.querySelector("#servicesPanel");
     const clockLabel = content.querySelector("#clockLabel");
+    const disableChatAnimations = content.querySelector("#disableChatAnimations");
 
     if (typeof state.rtcLocked !== "boolean") state.rtcLocked = true;
+    if (typeof state.disableChatAnimations !== "boolean") state.disableChatAnimations = false;
     if (!state.serviceHealth || typeof state.serviceHealth !== "object") {
       state.serviceHealth = {
         rtc: "stale",
@@ -119,6 +129,13 @@ export function openSettings({ makeWindow, state, saveState, notify }) {
     };
 
     update();
+    disableChatAnimations.checked = state.disableChatAnimations;
+    disableChatAnimations.onchange = () => {
+      state.disableChatAnimations = disableChatAnimations.checked;
+      saveState();
+      notify?.(state.disableChatAnimations ? "Chat animation effects disabled." : "Chat animation effects enabled.");
+    };
+
     content.querySelector("#sync311").onclick = () => applyClock(3, 11);
     content.querySelector("#applyTime").onclick = () => {
       const parsed = parseTime(manual.value);
