@@ -85,3 +85,20 @@ test('observer cannot run operator-only command actions', () => {
   assert.deepEqual(result.terminalLines, ['permission denied: operator role required']);
   assert.equal(state.unlocked.archive, false);
 });
+
+
+test('projection mode evaluates actions without mutating canonical state', () => {
+  const state = makeState();
+  state.viewed['/home/operator/docs/continuity_overview.txt'] = 1;
+
+  const result = applyAction(state, {
+    type: 'CMD_UNLOCK_ARCHIVE',
+    actor: 'p-1',
+    role: 'operator',
+    commandLine: 'unlock archive',
+    timestamp: 1000
+  }, { projectionMode: true });
+
+  assert.equal(state.unlocked.archive, false);
+  assert.equal(result.projectionState.unlocked.archive, true);
+});

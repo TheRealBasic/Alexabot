@@ -54,3 +54,17 @@ test('manifestation consume is one-shot while active', () => {
   assert.equal(consumeManifestation(state, 'terminalAnomaly'), true);
   assert.equal(consumeManifestation(state, 'terminalAnomaly'), false);
 });
+
+
+test('projection mode manifestations are flagged simulated without persistence callback', () => {
+  const state = makeState();
+  state.chapter = 3;
+  state.aiParanoia = 8;
+  let persisted = 0;
+
+  evaluateBehaviorReactions({ state, fs, saveState: () => { persisted += 1; }, projectionMode: true });
+
+  assert.equal(persisted, 0);
+  const recent = state.forensicTrail[state.forensicTrail.length - 1];
+  assert.match(recent.detail, /\[simulated\]/);
+});

@@ -1,5 +1,8 @@
-import { clearState, incrementFileView, appendManifestationEvent } from "../state.js";
+import { clearState, incrementFileView, appendManifestationEvent, clearSimulation } from "../state.js";
 import { consumeManifestation, isManifestationActive } from "../progression/reactions.js";
+import { runScenario, stepScenario, forkBranch, replaySeed } from "../simulation/engine.js";
+import { ensureSimulationState, serializeSimulationSnapshot } from "../simulation/serializer.js";
+import { listScenarioDefinitions } from "../simulation/scenarios.js";
 
 function isValidTime(hours, minutes) {
   return Number.isInteger(hours) && Number.isInteger(minutes) && hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
@@ -28,7 +31,7 @@ function actorLabel(actor) {
 
 function canRunCommand(role, cmd) {
   if (role === "operator") return true;
-  const observerAllowed = new Set(["help", "pwd", "history", "date", "ls", "cd", "cat", "clear", "whoami", "anomaly-hint", "ping", "ps", "service", "pkg", "appinfo", "net", "tail", "top-lite"]);
+  const observerAllowed = new Set(["help", "pwd", "history", "date", "ls", "cd", "cat", "clear", "whoami", "anomaly-hint", "ping", "ps", "service", "pkg", "appinfo", "net", "tail", "top-lite", "sim"]);
   return observerAllowed.has(cmd);
 }
 
@@ -114,6 +117,142 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
         ["155", "audit-indexer", state.chapter >= 3 ? "active" : "idle"]
       ];
       print(["PID   NAME             STATE", ...services.map((row) => `${row[0].padEnd(5)} ${row[1].padEnd(16)} ${row[2]}`)].join("\n"));
+    }
+
+
+    function printSimulationHelp() {
+      const names = listScenarioDefinitions().map((entry) => entry.id).join(", ");
+      print("sim commands:");
+      print("  sim start <scenario> [--seed=N]");
+      print("  sim step");
+      print("  sim fork <label>");
+      print("  sim branch <label>");
+      print("  sim metrics");
+      print("  sim export");
+      print(`  scenarios: ${names}`);
+    }
+
+    function handleSimulationCommand(args) {
+      const sim = ensureSimulationState(state);
+      const sub = args[0] || "help";
+      const observerOnly = new Set(["metrics", "export", "branch"]);
+      const operatorOnly = new Set(["start", "step", "fork"]);
+
+      if (role !== "operator" && operatorOnly.has(sub)) {
+        print("sim: operator role required for mutating commands");
+        return;
+      }
+      if (role !== "operator" && !observerOnly.has(sub) && sub !== "help") {
+        print("sim: command not allowed for observer");
+        return;
+      }
+
+      if (sub === "help") {
+        printSimulationHelp();
+        return;
+      }
+
+      if (sub === "start") {
+        const scenarioId = args[1];
+        if (!scenarioId) {
+          print("sim start: missing scenario id");
+          printSimulationHelp();
+          return;
+        }
+        const seedArg = args.find((entry) => entry.startsWith("--seed="));
+        const seed = seedArg ? Number(seedArg.split("=")[1]) : Date.now();
+        const result = runScenario(state, { scenarioId, seed });
+        if (!result.ok) {
+          print(`sim start failed: ${result.message}`);
+          return;
+        }
+        print(`simulation started: ${result.runId} (${result.scenario.label})`);
+        return;
+      }
+
+      if (sub === "step") {
+        const result = stepScenario(state);
+        if (!result.ok) {
+          print(`sim step failed: ${result.message}`);
+          return;
+        }
+        print(`sim event: ${result.event.eventType}`);
+        print(`trust=${result.metrics.trustScore} conflict=${result.metrics.conflictScore} pressure=${result.metrics.chapterPressure}`);
+        return;
+      }
+
+      if (sub === "fork") {
+        const label = args.slice(1).join(" ").trim();
+        if (!label) {
+          print("sim fork: missing label");
+          return;
+        }
+        const result = forkBranch(state, label);
+        if (!result.ok) {
+          print(`sim fork failed: ${result.message}`);
+          return;
+        }
+        print(`branch forked: ${result.branch.id}`);
+        return;
+      }
+
+      if (sub === "branch") {
+        const label = args[1];
+        if (!label) {
+          const branches = Object.keys(sim.branches);
+          print(`active branch: ${sim.selectedBranch || "none"}`);
+          print(`branches: ${branches.join(", ") || "none"}`);
+          return;
+        }
+        if (!sim.branches[label]) {
+          print(`sim branch: not found ${label}`);
+          return;
+        }
+        sim.selectedBranch = label;
+        print(`active branch set: ${label}`);
+        return;
+      }
+
+      if (sub === "metrics") {
+        if (!sim.activeRunId) {
+          print("sim metrics: no active simulation");
+          return;
+        }
+        const m = sim.derivedMetrics || {};
+        print(`run=${sim.activeRunId} scenario=${sim.scenarioId || "unknown"} branch=${sim.selectedBranch || "none"}`);
+        print(`events=${m.eventCount || 0} trust=${m.trustScore || 0} conflict=${m.conflictScore || 0} pressure=${m.chapterPressure || 0}`);
+        print(`success=${m.successRate || 0} ci=[${m.confidenceInterval?.lower ?? 0}, ${m.confidenceInterval?.upper ?? 0}]`);
+        return;
+      }
+
+      if (sub === "export") {
+        if (!sim.activeRunId) {
+          print("sim export: no active simulation");
+          return;
+        }
+        const result = replaySeed(state, sim.selectedBranch || "main");
+        if (!result.ok) {
+          print(`sim export failed: ${result.message}`);
+          return;
+        }
+        const snapshot = serializeSimulationSnapshot(state);
+        print("simulation exported to snapshot");
+        print(snapshot.slice(0, 240));
+        return;
+      }
+
+      if (sub === "clear") {
+        if (role !== "operator") {
+          print("sim clear: operator role required");
+          return;
+        }
+        clearSimulation(state);
+        print("simulation state cleared");
+        return;
+      }
+
+      print(`sim: unknown subcommand ${sub}`);
+      printSimulationHelp();
     }
 
     function serviceStatus(name = "") {
@@ -212,6 +351,8 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
         const body = getDynamicFile(p);
         if (!body) print("tail: file not found");
         else print(String(body).split("\n").slice(-8).join("\n"));
+      } else if (cmd === "sim") {
+        handleSimulationCommand(args);
       } else if (cmd === "whoami") print(role);
       else if (cmd === "reset-session") {
         clearState();

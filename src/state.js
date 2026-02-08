@@ -1,3 +1,5 @@
+import { createSimulationState, ensureSimulationState } from "./simulation/serializer.js";
+
 export const STORAGE_KEY = "eidolon_state_v1";
 
 export const defaultState = {
@@ -85,7 +87,8 @@ export const defaultState = {
   lastBootReport: null,
   panicFragment: "",
   pendingRecoveryNotice: false,
-  lifecycleHistory: []
+  lifecycleHistory: [],
+  simulationState: createSimulationState()
 };
 
 function ensureTrustState(state) {
@@ -140,6 +143,10 @@ function ensureProfileState(state) {
   if (!Array.isArray(state.recentFiles)) state.recentFiles = [];
 }
 
+function ensureSimulationSubstate(state) {
+  ensureSimulationState(state);
+}
+
 export function loadState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
@@ -158,7 +165,11 @@ export function loadState() {
         lastBootServices: Array.isArray(parsed.lastBootServices) ? parsed.lastBootServices : [],
         lifecycleHistory: Array.isArray(parsed.lifecycleHistory) ? parsed.lifecycleHistory : [],
         pendingRecoveryNotice: Boolean(parsed.pendingRecoveryNotice),
-        panicFragment: typeof parsed.panicFragment === "string" ? parsed.panicFragment : ""
+        panicFragment: typeof parsed.panicFragment === "string" ? parsed.panicFragment : "",
+        simulationState: {
+          ...createSimulationState(),
+          ...(parsed.simulationState || {})
+        }
       }
       : { ...defaultState };
   } catch {
@@ -211,6 +222,44 @@ export function completeObjective(state, objectiveId) {
     state.completedObjectives.push(objectiveId);
   }
   updateChapter(state);
+}
+
+export function startSimulation(state, payload = {}) {
+  const simulation = ensureSimulationState(state);
+  state.simulationState = {
+    ...createSimulationState(),
+    ...simulation,
+    ...payload,
+    status: "running",
+    eventLog: Array.isArray(payload.eventLog) ? payload.eventLog : [],
+    branches: payload.branches && typeof payload.branches === "object" ? payload.branches : (simulation.branches || {}),
+    artifacts: payload.artifacts && typeof payload.artifacts === "object" ? payload.artifacts : (simulation.artifacts || {})
+  };
+  return state.simulationState;
+}
+
+export function recordSimulationEvent(state, event = {}) {
+  const sim = ensureSimulationState(state);
+  const entry = {
+    id: event.id || `evt-${sim.eventLog.length + 1}`,
+    at: event.at || Date.now(),
+    ...event
+  };
+  sim.eventLog.push(entry);
+  sim.eventLog = sim.eventLog.slice(-120);
+  return entry;
+}
+
+export function completeSimulation(state, payload = {}) {
+  const sim = ensureSimulationState(state);
+  sim.status = "completed";
+  Object.assign(sim, payload);
+  return sim;
+}
+
+export function clearSimulation(state) {
+  state.simulationState = createSimulationState();
+  return state.simulationState;
 }
 
 export function getActiveObjectives(state, role = state.activeRole) {
@@ -293,6 +342,7 @@ export function applyProgressionFlags(state) {
   ensureManifestationState(state);
   ensureLifecycleState(state);
   ensureProfileState(state);
+  ensureSimulationSubstate(state);
   updateChapter(state);
   state.bootCount += 1;
   state.driftMinutes += (Math.random() < 0.4 ? (Math.random() < 0.5 ? -1 : 1) : 0);

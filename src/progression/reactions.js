@@ -110,14 +110,15 @@ export function shouldActivateManifestation(state, triggerId, now = Date.now()) 
   return now - lastTriggeredAt >= rule.cooldownMs;
 }
 
-export function activateManifestation(state, triggerId, detail, now = Date.now()) {
+export function activateManifestation(state, triggerId, detail, now = Date.now(), options = {}) {
   const rule = MANIFESTATION_RULES[triggerId];
   if (!rule) return false;
   const manifest = ensureManifestationState(state);
   manifest.lastTriggeredAt[triggerId] = now;
   manifest.activeUntil[triggerId] = now + rule.activeMs;
   manifest.delivered[triggerId] = false;
-  appendManifestationEvent(state, triggerId, detail);
+  const suffix = options.projectionMode ? " [simulated]" : "";
+  appendManifestationEvent(state, triggerId, `${detail}${suffix}`, options.projectionMode ? "simulation" : "system");
   return true;
 }
 
@@ -134,7 +135,7 @@ export function consumeManifestation(state, triggerId) {
   return true;
 }
 
-export function evaluateBehaviorReactions({ state, fs, saveState }) {
+export function evaluateBehaviorReactions({ state, fs, saveState, projectionMode = false }) {
   const flags = ensureReactionState(state);
   const terminal = summarizeTerminalHistory(state);
   const now = Date.now();
@@ -148,41 +149,41 @@ export function evaluateBehaviorReactions({ state, fs, saveState }) {
 
   if (!flags.alteredBootLines && (frequentCommands || repeatedAccess)) {
     flags.alteredBootLines = true;
-    saveState();
+    if (!projectionMode) saveState();
   }
 
   if (!flags.trayWarning && (lowCompliance || (frequentCommands && terminal.total >= 6))) {
     flags.trayWarning = true;
-    saveState();
+    if (!projectionMode) saveState();
   }
 
   if (!flags.syntheticCorrespondence && repeatedAccess && (terminal.counts.cat || 0) >= 3) {
     flags.syntheticCorrespondence = true;
     injectSyntheticFiles(fs);
-    saveState();
+    if (!projectionMode) saveState();
   }
 
   if (!flags.appGlitch && (state.complianceScore <= -4 || (frequentCommands && repeatedAccess && terminal.maxRepeatedLine >= 3))) {
     flags.appGlitch = true;
-    saveState();
+    if (!projectionMode) saveState();
   }
 
   let changed = false;
   if (shouldActivateManifestation(state, "terminalAnomaly", now)) {
-    changed = activateManifestation(state, "terminalAnomaly", "terminal line checksum mismatch", now) || changed;
+    changed = activateManifestation(state, "terminalAnomaly", "terminal line checksum mismatch", now, { projectionMode }) || changed;
   }
   if (shouldActivateManifestation(state, "labelShift", now)) {
-    changed = activateManifestation(state, "labelShift", "label harmonics shifted", now) || changed;
+    changed = activateManifestation(state, "labelShift", "label harmonics shifted", now, { projectionMode }) || changed;
   }
   if (shouldActivateManifestation(state, "clockWhisper", now)) {
-    changed = activateManifestation(state, "clockWhisper", "clock offset whisper queued", now) || changed;
+    changed = activateManifestation(state, "clockWhisper", "clock offset whisper queued", now, { projectionMode }) || changed;
     state.manifestationState.pendingClockLine = "clock discipline accepted // residual drift remains";
   }
   if (shouldActivateManifestation(state, "delayedNotification", now)) {
-    changed = activateManifestation(state, "delayedNotification", "notification tone desynchronized", now) || changed;
+    changed = activateManifestation(state, "delayedNotification", "notification tone desynchronized", now, { projectionMode }) || changed;
   }
 
-  if (changed) saveState();
+  if (changed && !projectionMode) saveState();
 }
 
 export function getReactiveBootloaderLines(baseLines, state) {

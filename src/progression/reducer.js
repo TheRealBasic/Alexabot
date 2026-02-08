@@ -38,7 +38,7 @@ function recordTrustEvent(state, type, delta, details = {}, timestamp = Date.now
   }
 }
 
-function assessTrustShift(state, action, output) {
+function assessTrustShift(state, action, output, options = {}) {
   ensureTrustState(state);
   const actor = getActorName(action.actor);
   const timestamp = action.timestamp || Date.now();
@@ -105,102 +105,107 @@ function requiresOperator(actionType) {
   return new Set(["CMD_UNLOCK_ARCHIVE", "CMD_SET_TIME", "CMD_RECOVER_MANIFEST", "CMD_STRINGS", "CMD_EXEC_RELAY"]).has(actionType);
 }
 
-export function applyAction(state, action = {}) {
+function cloneProjectionState(state) {
+  return JSON.parse(JSON.stringify(state));
+}
+
+export function applyAction(state, action = {}, options = {}) {
   const output = { terminalLines: [], notifications: [] };
-  ensureTrustState(state);
+  const target = options.projectionMode ? cloneProjectionState(state) : state;
+  ensureTrustState(target);
 
   if (action.type === "objective.complete") {
-    completeObjective(state, action.objectiveId);
-    return output;
+    completeObjective(target, action.objectiveId);
+    return options.projectionMode ? { ...output, projectionState: target } : output;
   }
 
-  if (!action.type?.startsWith("CMD_")) return output;
+  if (!action.type?.startsWith("CMD_")) return options.projectionMode ? { ...output, projectionState: target } : output;
 
   if (requiresOperator(action.type) && action.role && action.role !== "operator") {
     output.terminalLines.push("permission denied: operator role required");
-    return output;
+    return options.projectionMode ? { ...output, projectionState: target } : output;
   }
 
-  appendHistory(state, action);
+  appendHistory(target, action);
 
   if (action.type === "CMD_OBSERVER_PING") {
     if (action.role && action.role !== "observer") {
       output.terminalLines.push("permission denied: observer role required");
-      return output;
+      return options.projectionMode ? { ...output, projectionState: target } : output;
     }
     const code = String(Math.floor(1000 + Math.random() * 9000));
-    state.relaySignal = {
+    target.relaySignal = {
       code,
       generatedAt: action.timestamp || Date.now(),
       expiresAt: (action.timestamp || Date.now()) + 30_000,
       generatedBy: getActorName(action.actor),
       resolvedBy: null
     };
-    completeObjective(state, "observer_ping_operator");
+    completeObjective(target, "observer_ping_operator");
     output.terminalLines.push(`relay code emitted: ${code}`);
     output.notifications.push({ actor: getActorName(action.actor), message: `Observer pinged operator with relay code ${code}.` });
-    assessTrustShift(state, action, output);
-    return output;
+    assessTrustShift(target, action, output, options);
+    return options.projectionMode ? { ...output, projectionState: target } : output;
   }
 
   if (action.type === "CMD_EXEC_RELAY") {
-    const relay = state.relaySignal;
+    const relay = target.relaySignal;
     const now = action.timestamp || Date.now();
     if (!relay) {
       output.terminalLines.push("relay: no active signal");
-      assessTrustShift(state, action, output);
-      return output;
+      assessTrustShift(target, action, output, options);
+      return options.projectionMode ? { ...output, projectionState: target } : output;
     }
     if (now > relay.expiresAt) {
-      state.relaySignal = null;
+      target.relaySignal = null;
       output.terminalLines.push("relay: signal expired");
-      assessTrustShift(state, action, output);
-      return output;
+      assessTrustShift(target, action, output, options);
+      return options.projectionMode ? { ...output, projectionState: target } : output;
     }
     if (action.code !== relay.code) {
       output.terminalLines.push("relay: invalid code");
-      assessTrustShift(state, action, output);
-      return output;
+      assessTrustShift(target, action, output, options);
+      return options.projectionMode ? { ...output, projectionState: target } : output;
     }
-    state.relaySignal.resolvedBy = getActorName(action.actor);
-    completeObjective(state, "operator_execute_relay");
+    target.relaySignal.resolvedBy = getActorName(action.actor);
+    completeObjective(target, "operator_execute_relay");
     output.terminalLines.push("relay handshake accepted");
     output.notifications.push({ actor: getActorName(action.actor), message: "Operator executed observer relay in time." });
-    assessTrustShift(state, action, output);
-    return output;
+    assessTrustShift(target, action, output, options);
+    return options.projectionMode ? { ...output, projectionState: target } : output;
   }
 
   if (action.type === "CMD_UNLOCK_ARCHIVE") {
-    if ((state.viewed?.["/home/operator/docs/continuity_overview.txt"] || 0) > 0) {
-      state.unlocked.archive = true;
-      completeObjective(state, "unlock_archive");
+    if ((target.viewed?.["/home/operator/docs/continuity_overview.txt"] || 0) > 0) {
+      target.unlocked.archive = true;
+      completeObjective(target, "unlock_archive");
       output.terminalLines.push("archive channel exposed");
     } else {
       output.terminalLines.push("unlock: required context missing");
     }
-    assessTrustShift(state, action, output);
-    return output;
+    assessTrustShift(target, action, output, options);
+    return options.projectionMode ? { ...output, projectionState: target } : output;
   }
 
   if (action.type === "CMD_SET_TIME") {
     const reference = new Date(action.timestamp || Date.now());
     const simulated = new Date(reference.getFullYear(), reference.getMonth(), reference.getDate(), action.hours, action.minutes);
-    state.driftMinutes = Math.round((simulated.getTime() - reference.getTime()) / 60000);
+    target.driftMinutes = Math.round((simulated.getTime() - reference.getTime()) / 60000);
     if (action.hours === 3 && action.minutes === 11) {
-      state.unlocked.redactedLog = true;
-      completeObjective(state, "set_time_0311");
+      target.unlocked.redactedLog = true;
+      completeObjective(target, "set_time_0311");
       output.terminalLines.push("maintenance window active");
     }
     output.terminalLines.push("clock adjusted");
-    assessTrustShift(state, action, output);
-    return output;
+    assessTrustShift(target, action, output, options);
+    return options.projectionMode ? { ...output, projectionState: target } : output;
   }
 
   if (action.type === "CMD_RECOVER_MANIFEST") {
-    const clock = new Date((action.timestamp || Date.now()) + state.driftMinutes * 60000);
+    const clock = new Date((action.timestamp || Date.now()) + target.driftMinutes * 60000);
     if (clock.getHours() === 3 && clock.getMinutes() >= 11 && clock.getMinutes() <= 13) {
-      state.recoveredFiles = true;
-      completeObjective(state, "recover_manifest");
+      target.recoveredFiles = true;
+      completeObjective(target, "recover_manifest");
       output.terminalLines.push("2 files restored from deleted manifest.");
       output.notifications.push({
         actor: getActorName(action.actor),
@@ -209,22 +214,22 @@ export function applyAction(state, action = {}) {
     } else {
       output.terminalLines.push("recover: denied outside maintenance window");
     }
-    return output;
+    return options.projectionMode ? { ...output, projectionState: target } : output;
   }
 
   if (action.type === "CMD_STRINGS") {
     if (action.path === "/media/cam2_20030418.dat") {
-      state.unlocked.mediaReveal = true;
-      completeObjective(state, "decode_cam2");
+      target.unlocked.mediaReveal = true;
+      completeObjective(target, "decode_cam2");
       output.terminalLines.push("extracting printable strings...");
       output.terminalLines.push(action.decodedText || "");
     } else {
       output.terminalLines.push("no printable strings found");
     }
-    assessTrustShift(state, action, output);
-    return output;
+    assessTrustShift(target, action, output, options);
+    return options.projectionMode ? { ...output, projectionState: target } : output;
   }
 
-  assessTrustShift(state, action, output);
-  return output;
+  assessTrustShift(target, action, output, options);
+  return options.projectionMode ? { ...output, projectionState: target } : output;
 }
