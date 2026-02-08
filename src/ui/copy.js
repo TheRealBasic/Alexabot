@@ -43,6 +43,7 @@ export const COPY = {
       "Phase III active: complete disclosure and handoff."
     ],
     shutdownBlocked: "Shutdown unavailable: archival cycle is locked.",
+    lifecycleBlocked: "Lifecycle controls unavailable while attached to a paired node.",
     resetConfirm: "Purge local workstation state and restart?"
   },
   apps: {
@@ -55,7 +56,8 @@ export const COPY = {
     chat: "The Wakeful Thread",
     menuLabel: "Program Launcher",
     reset: "Reset Workstation",
-    shutdown: "Power Down"
+    restart: "Restart Workstation",
+    crash: "Force Kernel Crash"
   },
   explorer: {
     deniedAudit: "<span class='err'>ERR-AUTH-403</span>\nOperator note: align RTC with maintenance marker 03:11 in Workstation Settings.",

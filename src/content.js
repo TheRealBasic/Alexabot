@@ -9,7 +9,8 @@ export const fs = {
   "/home/guest": ["note.txt"],
   "/system": ["boot.cfg", "users.db", "help", "drivers", "time.dat"],
   "/system/help": ["shell_help.txt", "recovery_help.txt", "known_issues.txt"],
-  "/logs": ["kernel.log", "session.log", "incident.log", "audit_redacted.log", "final_directive.log"],
+  "/logs": ["kernel.log", "session.log", "incident.log", "audit_redacted.log", "final_directive.log", "diagnostics"],
+  "/logs/diagnostics": ["last_boot_report.log", "panic_fragment.log"],
   "/media": ["lullaby.wav", "hallway_capture.avi", "cam2_20030418.dat"],
   "/.cache": ["profile.snapshot", "shadow.idx", "deleted_manifest.tmp"]
 };
@@ -50,6 +51,25 @@ export const files = {
   "/.cache/shadow.idx": "operator|operator|operator|[null]|operator",
   "/.cache/deleted_manifest.tmp": "deleted:/home/operator/docs/postmortem.txt\ndeleted:/home/operator/mail/draft_9.eml"
 };
+
+
+function formatBootReport(state) {
+  const report = state.lastBootReport;
+  if (!report) {
+    return "no prior boot diagnostics";
+  }
+  const serviceLines = (report.services || []).map((service) => `- ${service.name}: ${service.status}`).join("\n");
+  return [
+    `id=${report.id}`,
+    `timestamp=${report.timestamp}`,
+    `reason=${report.reason}`,
+    `chapter=${report.chapter}`,
+    `trust=${report.trust}`,
+    `conflicts=${report.conflicts}`,
+    "services:",
+    serviceLines || "- unavailable"
+  ].join("\n");
+}
 
 const chapterMilestones = {
   "/home/operator/docs/act2_transition.txt": 2,
@@ -123,6 +143,12 @@ export function getDynamicFile(path, state) {
   }
   if (path === "/media/cam2_20030418.dat" && state.unlocked.mediaReveal) {
     return "decoded payload:\n'If you are reading this, it learned to compress people into behavior.'";
+  }
+  if (path === "/logs/diagnostics/last_boot_report.log") {
+    return formatBootReport(state);
+  }
+  if (path === "/logs/diagnostics/panic_fragment.log") {
+    return state.panicFragment || "panic fragment not recorded";
   }
   if (path === "/logs/final_directive.log" && state.chapter >= 3) {
     const trustRoute = getTrustTrajectory(state);

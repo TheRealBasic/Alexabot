@@ -69,7 +69,13 @@ export const defaultState = {
     onboardingDismissedChapter: 0
   },
   windowLayout: {},
-  disableChatAnimations: false
+  disableChatAnimations: false,
+  bootStage: "bios",
+  lastBootServices: [],
+  lastBootReport: null,
+  panicFragment: "",
+  pendingRecoveryNotice: false,
+  lifecycleHistory: []
 };
 
 function ensureTrustState(state) {
@@ -105,6 +111,15 @@ function ensureManifestationState(state) {
   }
 }
 
+function ensureLifecycleState(state) {
+  if (typeof state.bootStage !== "string") state.bootStage = "bios";
+  if (!Array.isArray(state.lastBootServices)) state.lastBootServices = [];
+  if (!state.lastBootReport || typeof state.lastBootReport !== "object") state.lastBootReport = null;
+  if (typeof state.panicFragment !== "string") state.panicFragment = "";
+  if (typeof state.pendingRecoveryNotice !== "boolean") state.pendingRecoveryNotice = false;
+  if (!Array.isArray(state.lifecycleHistory)) state.lifecycleHistory = [];
+}
+
 export function loadState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
@@ -118,7 +133,12 @@ export function loadState() {
         reactionFlags: { ...defaultState.reactionFlags, ...(parsed.reactionFlags || {}) },
         cinematicSeen: { ...defaultState.cinematicSeen, ...(parsed.cinematicSeen || {}) },
         uiHints: { ...defaultState.uiHints, ...(parsed.uiHints || {}) },
-        windowLayout: { ...defaultState.windowLayout, ...(parsed.windowLayout || {}) }
+        windowLayout: { ...defaultState.windowLayout, ...(parsed.windowLayout || {}) },
+        lastBootReport: parsed.lastBootReport || null,
+        lastBootServices: Array.isArray(parsed.lastBootServices) ? parsed.lastBootServices : [],
+        lifecycleHistory: Array.isArray(parsed.lifecycleHistory) ? parsed.lifecycleHistory : [],
+        pendingRecoveryNotice: Boolean(parsed.pendingRecoveryNotice),
+        panicFragment: typeof parsed.panicFragment === "string" ? parsed.panicFragment : ""
       }
       : { ...defaultState };
   } catch {
@@ -248,6 +268,7 @@ export function applyProgressionFlags(state) {
   ensureTrustState(state);
   ensureAiMemoryState(state);
   ensureManifestationState(state);
+  ensureLifecycleState(state);
   updateChapter(state);
   state.bootCount += 1;
   state.driftMinutes += (Math.random() < 0.4 ? (Math.random() < 0.5 ? -1 : 1) : 0);
