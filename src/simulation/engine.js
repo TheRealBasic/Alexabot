@@ -34,6 +34,10 @@ function ensureMainBranch(state, runIdValue) {
 }
 
 export function runScenario(state, { scenarioId, seed = Date.now() } = {}) {
+  const sim = ensureSimulationState(state);
+  if (sim.activeRunId && sim.status === "running") {
+    return { ok: false, message: "simulation already running" };
+  }
   const scenario = getScenarioDefinition(scenarioId);
   if (!scenario) {
     return { ok: false, message: `unknown scenario: ${scenarioId}` };
@@ -55,10 +59,10 @@ export function runScenario(state, { scenarioId, seed = Date.now() } = {}) {
       }
     }
   });
-  const sim = ensureSimulationState(state);
-  sim.derivedMetrics.chapterPressure = scenario.startingPressure || 0;
-  sim.artifacts[`/logs/simulations/${id}.log`] = `simulation ${id} started\nscenario=${scenario.label}\nseed=${seed}`;
-  sim.artifacts[`/home/operator/docs/projections/${id}_summary.txt`] = `Projection ${id}\nScenario: ${scenario.label}\nStatus: running`;
+  const startedSim = ensureSimulationState(state);
+  startedSim.derivedMetrics.chapterPressure = scenario.startingPressure || 0;
+  startedSim.artifacts[`/logs/simulations/${id}.log`] = `simulation ${id} started\nscenario=${scenario.label}\nseed=${seed}`;
+  startedSim.artifacts[`/home/operator/docs/projections/${id}_summary.txt`] = `Projection ${id}\nScenario: ${scenario.label}\nStatus: running`;
   return { ok: true, runId: id, scenario };
 }
 
