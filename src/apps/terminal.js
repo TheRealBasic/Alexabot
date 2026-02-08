@@ -309,7 +309,10 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
         addHistory(cmdLine);
       }
 
-      if (cmd === "help") print(files["/system/help/shell_help.txt"]);
+      if (cmd === "help") {
+        print(files["/system/help/shell_help.txt"]);
+        completeObjective({ type: "objective.complete", objectiveId: "onboarding_run_help" });
+      }
       else if (cmd === "pwd") print(cwd);
       else if (cmd === "history") printHistory();
       else if (cmd === "anomaly-hint") {
@@ -332,6 +335,7 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
         else {
           print(getDynamicFile(p) || "cat: file not found");
           incrementFileView(state, p);
+          completeObjective({ type: "objective.complete", objectiveId: "onboarding_read_file" });
           if (p === "/logs/audit_redacted.log" && (state.unlocked.redactedLog || role === "observer")) completeObjective({ type: "objective.complete", objectiveId: "access_redacted_audit" });
           if (role === "observer" && p === "/logs/incident.log") completeObjective({ type: "objective.complete", objectiveId: "observer_anomaly_trace" });
         }
@@ -347,6 +351,9 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
             print("queued for server confirmation...");
           }
           for (const line of result?.terminalLines || []) print(line);
+          if (["CMD_UNLOCK_ARCHIVE", "CMD_SET_TIME", "CMD_RECOVER_MANIFEST", "CMD_STRINGS", "CMD_EXEC_RELAY", "CMD_OBSERVER_PING"].includes(action.type)) {
+            completeObjective({ type: "objective.complete", objectiveId: "onboarding_progression_command" });
+          }
         }
       } else if (cmd === "ps" || cmd === "top-lite") {
         printProcessTable();
