@@ -1,12 +1,10 @@
-import { createAudioEngine } from "./audio/engine.js";
+import { AUDIO_MIX_DEFAULTS, createAudioEngine } from "./audio/engine.js";
 
 export function createPresentationController({ state, desktopRoot, taskbar, overlay }) {
-  let ambientBus;
   let ambientNodes;
   let locked = false;
   let lastUiClickAt = 0;
-  const audio = createAudioEngine();
-  audio.setMasterVolume(0.62);
+  const audio = createAudioEngine({ mix: AUDIO_MIX_DEFAULTS });
   const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
   const cinematicSeen = state.cinematicSeen || (state.cinematicSeen = {
@@ -23,8 +21,8 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
     const ctx = audio.getContext();
     if (!ctx) return;
 
-    ambientBus = ambientBus || audio.createSubmix({ gain: 0.34 });
-    if (!ambientBus) return;
+    const ambienceBus = audio.getAmbienceBus();
+    if (!ambienceBus) return;
 
     const hpFilter = ctx.createBiquadFilter();
     hpFilter.type = "highpass";
@@ -46,9 +44,9 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
       widthDepth.gain.value = 0.16;
       widthLfo.connect(widthDepth).connect(widthPanner.pan);
       widthLfo.start();
-      lpFilter.connect(widthPanner).connect(ambientBus);
+      lpFilter.connect(widthPanner).connect(ambienceBus);
     } else {
-      lpFilter.connect(ambientBus);
+      lpFilter.connect(ambienceBus);
     }
 
     hpFilter.connect(lpFilter);
