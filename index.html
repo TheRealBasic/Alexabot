@@ -41,7 +41,7 @@
   <main id="desktopRoot" class="scanline">
     <div class="desktop-icons" id="desktopIcons"></div>
 
-    <div class="start-menu" id="startMenu"></div>
+    <div class="start-menu" id="startMenu"><div class="start-menu-header"><div class="system-label">Program Launcher // Session Control</div></div><div class="start-menu-items" id="startMenuItems"></div></div>
 
     <div id="cinematicOverlay" class="cinematic-overlay"></div>
     <div id="notificationCenter" class="notification-center" aria-live="polite"></div>
@@ -50,10 +50,10 @@
       <button class="start-btn" id="startBtn">Program Launcher</button>
       <div class="tasklist" id="taskList"></div>
       <div class="tray">
-        <span id="trayState">SYS: DEGRADED</span>
-        <span id="trayConnection">LINK: OFFLINE</span>
-        <span id="traySync">REPL: IDLE</span>
-        <span id="trayClock"></span>
+        <span id="trayState" class="tray-segment">SYS: DEGRADED</span>
+        <span id="trayConnection" class="tray-segment">LINK: OFFLINE</span>
+        <span id="traySync" class="tray-segment">REPL: IDLE</span>
+        <span id="trayClock" class="tray-segment clock"></span>
       </div>
     </div>
   </main>

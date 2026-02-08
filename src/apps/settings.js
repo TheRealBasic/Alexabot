@@ -8,15 +8,16 @@ function parseTime(value) {
 }
 
 export function openSettings({ makeWindow, state, saveState, notify }) {
-  makeWindow("settings", COPY.apps.settings, (content) => {
-    content.innerHTML = `<div><strong>${COPY.settings.title}:</strong> <span id='offset'></span> minutes</div>
+  makeWindow("settings", COPY.apps.settings, (content, win) => {
+    content.innerHTML = `<div class='app-shell'><div class='system-label'>clock discipline controls</div><div class='panel-dense'><div><span class='field-legend'>${COPY.settings.title}</span><span id='offset'></span> minutes</div>
       <div style='margin-top:10px; display:flex; gap:6px; align-items:center'>
         <input id='manualTime' type='time' value='03:11' />
         <button id='applyTime'>${COPY.settings.apply}</button>
       </div>
       <button id='sync311' style='margin-top:10px'>${COPY.settings.syncMaintenance}</button>
       <div class='notice'>${COPY.settings.warning}</div>
-      <div id='setMsg' class='notice'></div>`;
+      <div id='setMsg' class='notice'></div></div></div>`;
+    win?.setHealth?.('active');
 
     const offset = content.querySelector("#offset");
     const msg = content.querySelector("#setMsg");
@@ -46,9 +47,11 @@ export function openSettings({ makeWindow, state, saveState, notify }) {
       const parsed = parseTime(manual.value);
       if (!parsed) {
         msg.textContent = COPY.settings.invalid;
+        win?.setHealth?.("fault");
         return;
       }
       applyClock(parsed.hours, parsed.minutes);
+      win?.setHealth?.("active");
     };
   });
 }
