@@ -25,6 +25,8 @@ import { openSimulationConsole } from "./apps/simulation.js";
 import { createPresentationController } from "./presentation.js";
 import { getOnboardingChecklistItems } from "./onboarding.js";
 import { COPY, formatCopy } from "./ui/copy.js";
+import { subscribeSystemEvents } from "./systems/events.js";
+import { getServiceStatusTable, tickSystemSimulation } from "./systems/simulator.js";
 
 const params = new URLSearchParams(window.location.search);
 const roomId = params.get("room");
@@ -135,6 +137,16 @@ const notify = (message, { actor } = {}) => {
   };
   if (delayed) setTimeout(mountToast, 400);
   else mountToast();
+};
+
+const getSystemTraySummary = () => {
+  const rows = getServiceStatusTable(state);
+  const unhealthy = rows.filter((row) => row.status !== "active");
+  const anomalies = rows.filter((row) => row.anomaly).length;
+  if (!rows.length) return "SYS: N/A";
+  if (anomalies > 0) return `SYS: WATCH (${anomalies} anomalies)`;
+  if (unhealthy.length > 0) return `SYS: DEGRADED (${unhealthy.length}/${rows.length})`;
+  return "SYS: ACTIVE";
 };
 
 const presentation = createPresentationController({
@@ -321,6 +333,7 @@ const appContext = {
   completeObjective: (action) => dispatchAction(action),
   sendAction: (action) => dispatchAction(action),
   notify,
+  simulateSystemTick: () => tickSystemSimulation(state),
   simulationHooks: {
     onCriticalDivergence: ({ divergence, branchA, branchB }) => {
       notify(formatCopy(COPY.simulation.notifications.criticalDivergence, {
@@ -342,6 +355,13 @@ const appContext = {
   getDirectoryEntries,
   isContentVisible
 };
+
+const unsubscribeSystemEvents = subscribeSystemEvents((event) => {
+  if (event.level === "warning" || event.level === "critical") {
+    notify(`service warning: ${event.service} // ${event.message}`, { actor: "system" });
+  }
+});
+void unsubscribeSystemEvents;
 
 function getChapterLabel(chapter) {
   return COPY.shell.chapterLabels[chapter] || COPY.shell.chapterLabels[3];
@@ -569,13 +589,19 @@ function initDesktop() {
     const baseClock = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     trayClock.textContent = isManifestationActive(state, "labelShift") ? `${baseClock} ?` : baseClock;
     setTrayHealth(trayClock, trayClock.textContent);
-    trayState.textContent = getTrayWarningText(state);
+    trayState.textContent = `${getTrayWarningText(state)} | ${getSystemTraySummary()}`;
     setTrayHealth(trayState, trayState.textContent);
 
     const glitch = getAppGlitchStyle(state);
     desktopRoot.style.filter = glitch.filter;
     desktopRoot.style.transform = glitch.transform;
   }, 1000);
+
+  setInterval(() => {
+    tickSystemSimulation(state);
+    rehydrateContentFromState(state);
+    if (state.sessionMode === "solo") persist();
+  }, 2500);
 }
 
 createRoomBtn.onclick = () => {

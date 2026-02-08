@@ -11,7 +11,7 @@ export const fs = {
   "/system": ["boot.cfg", "users.db", "help", "drivers", "time.dat"],
   "/system/help": ["shell_help.txt", "recovery_help.txt", "known_issues.txt"],
   "/logs": ["kernel.log", "session.log", "incident.log", "audit_redacted.log", "final_directive.log", "diagnostics", "simulations"],
-  "/logs/diagnostics": ["last_boot_report.log", "panic_fragment.log"],
+  "/logs/diagnostics": ["last_boot_report.log", "panic_fragment.log", "service_drift.log"],
   "/logs/simulations": [],
   "/media": ["lullaby.wav", "hallway_capture.avi", "cam2_20030418.dat", "usb_old"],
   "/.cache": ["profile.snapshot", "shadow.idx", "deleted_manifest.tmp"],
@@ -62,7 +62,7 @@ export const files = {
   "/home/guest/note.txt": "guest account disabled on request of 'operator'",
   "/system/boot.cfg": "KERNEL=/boot/kernel.img\nRECOVERY=true\nSILENT=false\nOBSERVER=enabled",
   "/system/users.db": "operator:x:1000:1000\nguest:x:1001:1001 [locked]\narchive:?:?:?",
-  "/system/help/shell_help.txt": "Commands: help, ls, cd, cat, clear, pwd, unlock archive, set-time HH:MM, recover --manifest, strings <file>, whoami, history, date, anomaly-hint, ping operator, relay exec <code>, ps, service status, service restart <name>, pkg list, pkg history, appinfo <name>, net status, net history, tail <file>, sim <subcommand>, reset-session",
+  "/system/help/shell_help.txt": "Commands: help, ls, cd, cat, clear, pwd, unlock archive, set-time HH:MM, recover --manifest, strings <file>, whoami, history, date, anomaly-hint, ping operator, relay exec <code>, ps, service status, service restart <name>, svc status, svc restart <name>, svc trace <name>, pkg list, pkg history, appinfo <name>, net status, net history, tail <file>, sim <subcommand>, reset-session",
   "/system/help/recovery_help.txt": "To restore deleted objects:\n1) access /.cache/deleted_manifest.tmp\n2) run: recover --manifest\nNote: command denied outside maintenance window 03:11-03:13",
   "/system/help/known_issues.txt": "Issue #44: clock drift exactly 47 minutes after outage.\nIssue #51: session daemon may address user by previous name.",
   "/system/drivers": "[directory listing hidden]",
@@ -144,6 +144,19 @@ function formatBootReport(state) {
     `conflicts=${report.conflicts}`,
     "services:",
     serviceLines || "- unavailable"
+  ].join("\n");
+}
+
+
+function formatServiceProcEntry(service = {}) {
+  return [
+    `name=${service.name || "unknown"}`,
+    `status=${service.status || "unknown"}`,
+    `health=${Number(service.health || 0).toFixed(3)}`,
+    `drift=${Number(service.drift || 0).toFixed(3)}`,
+    `restarts=${service.restartCount || 0}`,
+    `anomaly=${service.anomaly ? "yes" : "no"}`,
+    `dependencies=${(service.dependencies || []).join(",") || "none"}`
   ].join("\n");
 }
 
@@ -234,6 +247,31 @@ export function getDynamicFile(path, state) {
       return `Projection ${sim.activeRunId}\nScenario: ${sim.scenarioId || "unknown"}\nBranch: ${sim.selectedBranch || "main"}\nTrust=${metrics.trustScore || 0} Conflict=${metrics.conflictScore || 0} Pressure=${metrics.chapterPressure || 0}`;
     }
     return "projection unavailable";
+  }
+
+  const systemSim = state.systemSimulationState || {};
+  if (path.startsWith("/proc/services/")) {
+    const name = path.split("/").pop();
+    const service = systemSim.services?.[name];
+    return service ? formatServiceProcEntry(service) : "service proc entry unavailable";
+  }
+  if (path === "/logs/diagnostics/service_drift.log") {
+    const warnings = Array.isArray(systemSim.warnings) ? systemSim.warnings : [];
+    if (!warnings.length) return "no service drift warnings";
+    return warnings.slice(-20).join("\n");
+  }
+  if (path.startsWith("/tmp/recovery/")) {
+    const name = path.split("/").pop();
+    if (name === "cleanup_report.txt") {
+      const recovered = Object.values(systemSim.services || {}).filter((svc) => (svc.restartCount || 0) > 0).length;
+      return `recovery summary\nauto-recovered services=${recovered}\nlast-tick=${systemSim.tick || 0}`;
+    }
+    if (name === "orphaned_refs.txt") {
+      const unstable = Object.values(systemSim.services || {}).filter((svc) => svc.status !== "active").map((svc) => svc.name);
+      return unstable.length
+        ? `unstable references:\n${unstable.join("\n")}`
+        : "unstable references: none";
+    }
   }
 
   if (path === "/logs/audit_redacted.log" && state.activeRole === "observer") {
