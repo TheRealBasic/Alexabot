@@ -2,6 +2,7 @@ import { WebSocketServer } from "ws";
 import crypto from "node:crypto";
 import { defaultState } from "../src/state.js";
 import { applyAction } from "../src/progression/reducer.js";
+import { cleanupExpiredRooms, loadRoom, preloadActiveRooms, saveRoom } from "./room-store.js";
 
 const PORT = Number(process.env.MULTIPLAYER_PORT || 8787);
 const JWT_SECRET = process.env.MULTIPLAYER_JWT_SECRET;
@@ -11,6 +12,8 @@ const CLOSE_CODES = {
   unauthorized: 4001,
   forbidden: 4003
 };
+const SAVE_DEBOUNCE_MS = Number(process.env.ROOM_SAVE_DEBOUNCE_MS || 250);
+const PRELOAD_ROOMS_ON_START = process.env.PRELOAD_ROOMS_ON_START === "1";
 
 function decodeBase64Url(value) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -202,20 +205,52 @@ function createRoom(roomId) {
   const room = {
     roomId,
     version: 1,
+    versionHistory: [{ version: 1, timestamp: Date.now() }],
+    lastSavedAt: null,
     state: {
       ...defaultState,
       sessionMode: "coop",
       roomId,
       playerId: "server"
     },
-    sockets: new Set()
+    sockets: new Set(),
+    saveTimer: null
   };
   rooms.set(roomId, room);
   return room;
 }
 
-function getRoom(roomId) {
-  return rooms.get(roomId) || createRoom(roomId);
+function hydrateRoomRecord(record) {
+  return {
+    roomId: record.roomId,
+    version: record.version,
+    versionHistory: record.versionHistory || [{ version: record.version, timestamp: Date.now() }],
+    lastSavedAt: record.lastSavedAt || null,
+    state: record.state,
+    sockets: new Set(),
+    saveTimer: null
+  };
+}
+
+async function getRoom(roomId) {
+  const existing = rooms.get(roomId);
+  if (existing) return existing;
+
+  const persisted = await loadRoom(roomId);
+  const room = persisted ? hydrateRoomRecord(persisted) : createRoom(roomId);
+  rooms.set(roomId, room);
+  return room;
+}
+
+function scheduleSave(room) {
+  if (room.saveTimer) clearTimeout(room.saveTimer);
+  room.saveTimer = setTimeout(async () => {
+    room.saveTimer = null;
+    const persisted = await saveRoom(room.state, room.version, Date.now(), room.versionHistory || []);
+    if (!persisted) return;
+    room.lastSavedAt = persisted.lastSavedAt;
+    room.versionHistory = persisted.versionHistory;
+  }, SAVE_DEBOUNCE_MS);
 }
 
 function computePatch(previous, next) {
@@ -239,11 +274,20 @@ function broadcast(room, message) {
 
 const wss = new WebSocketServer({ port: PORT });
 
+if (PRELOAD_ROOMS_ON_START) {
+  const persistedRooms = await preloadActiveRooms();
+  for (const persistedRoom of persistedRooms) {
+    rooms.set(persistedRoom.roomId, hydrateRoomRecord(persistedRoom));
+  }
+  console.log(`[room-store] preloaded ${persistedRooms.length} active room(s)`);
+}
+await cleanupExpiredRooms();
+
 wss.on("connection", (socket) => {
   let joinedRoomId = null;
   let joinedSession = null;
 
-  socket.on("message", (raw) => {
+  socket.on("message", async (raw) => {
     let message;
     try {
       message = JSON.parse(String(raw));
@@ -272,7 +316,7 @@ wss.on("connection", (socket) => {
         return;
       }
 
-      const room = getRoom(tokenClaims.roomId);
+      const room = await getRoom(tokenClaims.roomId);
       joinedRoomId = tokenClaims.roomId;
       joinedSession = Object.freeze({
         playerId: tokenClaims.playerId,
@@ -286,6 +330,8 @@ wss.on("connection", (socket) => {
         meta: {
           roomId: room.roomId,
           version: room.version,
+          versionHistory: room.versionHistory,
+          lastSavedAt: room.lastSavedAt,
           playerId: joinedSession.playerId,
           role: joinedSession.role
         }
@@ -294,7 +340,7 @@ wss.on("connection", (socket) => {
     }
 
     if (!joinedRoomId) return;
-    const room = getRoom(joinedRoomId);
+    const room = await getRoom(joinedRoomId);
 
     if (message.type === "snapshot.request") {
       socket.send(JSON.stringify({
@@ -303,6 +349,8 @@ wss.on("connection", (socket) => {
         meta: {
           roomId: room.roomId,
           version: room.version,
+          versionHistory: room.versionHistory,
+          lastSavedAt: room.lastSavedAt,
           playerId: joinedSession.playerId,
           role: joinedSession.role
         }
@@ -335,6 +383,8 @@ wss.on("connection", (socket) => {
     ACTION_HANDLERS[action.type](room, action);
 
     room.version += 1;
+    room.versionHistory = [...(room.versionHistory || []), { version: room.version, timestamp: Date.now() }].slice(-100);
+    scheduleSave(room);
     const meta = { roomId: room.roomId, version: room.version, playerId: joinedSession.playerId, role: joinedSession.role };
 
     broadcast(room, {
