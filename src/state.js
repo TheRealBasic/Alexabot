@@ -77,6 +77,15 @@ export const defaultState = {
     onboardingDismissedChapter: 0,
     objectivePanelConfirmedChapters: []
   },
+  guidanceMetrics: {
+    failedCommandStreak: 0,
+    lastCommandAt: 0,
+    idleMs: 0,
+    unresolvedObjectiveSince: 0,
+    unresolvedObjectiveDurationMs: 0,
+    hintTier: 0,
+    lastHintTierPrompted: 0
+  },
   windowLayout: {},
   disableChatAnimations: false,
   userProfile: {
@@ -156,6 +165,15 @@ function ensureSimulationSubstate(state) {
   ensureSystemSimulationState(state);
 }
 
+function ensureGuidanceMetrics(state) {
+  if (!state.guidanceMetrics || typeof state.guidanceMetrics !== "object") {
+    state.guidanceMetrics = { ...defaultState.guidanceMetrics };
+  } else {
+    state.guidanceMetrics = { ...defaultState.guidanceMetrics, ...state.guidanceMetrics };
+  }
+  return state.guidanceMetrics;
+}
+
 export function loadState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
@@ -169,6 +187,7 @@ export function loadState() {
         reactionFlags: { ...defaultState.reactionFlags, ...(parsed.reactionFlags || {}) },
         cinematicSeen: { ...defaultState.cinematicSeen, ...(parsed.cinematicSeen || {}) },
         uiHints: { ...defaultState.uiHints, ...(parsed.uiHints || {}) },
+        guidanceMetrics: { ...defaultState.guidanceMetrics, ...(parsed.guidanceMetrics || {}) },
         windowLayout: { ...defaultState.windowLayout, ...(parsed.windowLayout || {}) },
         lastBootReport: parsed.lastBootReport || null,
         lastBootServices: Array.isArray(parsed.lastBootServices) ? parsed.lastBootServices : [],
@@ -231,10 +250,44 @@ export function appendManifestationEvent(state, triggerId, detail, actor = "syst
 }
 
 export function completeObjective(state, objectiveId) {
+  const wasCompleted = state.completedObjectives.includes(objectiveId);
   if (!state.completedObjectives.includes(objectiveId)) {
     state.completedObjectives.push(objectiveId);
   }
+  if (!wasCompleted) resetHintIntensity(state);
   updateChapter(state);
+  updateGuidanceMetrics(state);
+}
+
+export function resetHintIntensity(state) {
+  const metrics = ensureGuidanceMetrics(state);
+  metrics.hintTier = 0;
+  metrics.failedCommandStreak = 0;
+  metrics.lastHintTierPrompted = 0;
+}
+
+export function recordCommandTelemetry(state, { success, timestamp = Date.now() } = {}) {
+  const metrics = ensureGuidanceMetrics(state);
+  metrics.lastCommandAt = timestamp;
+  metrics.idleMs = 0;
+  if (success) metrics.failedCommandStreak = 0;
+  else metrics.failedCommandStreak = Math.max(0, Number(metrics.failedCommandStreak || 0) + 1);
+  updateGuidanceMetrics(state, timestamp);
+}
+
+export function updateGuidanceMetrics(state, now = Date.now()) {
+  const metrics = ensureGuidanceMetrics(state);
+  metrics.idleMs = metrics.lastCommandAt > 0 ? Math.max(0, now - metrics.lastCommandAt) : 0;
+
+  const unresolvedObjectives = getActiveObjectives(state).length;
+  if (unresolvedObjectives > 0) {
+    if (!metrics.unresolvedObjectiveSince) metrics.unresolvedObjectiveSince = now;
+    metrics.unresolvedObjectiveDurationMs = Math.max(0, now - metrics.unresolvedObjectiveSince);
+  } else {
+    metrics.unresolvedObjectiveSince = 0;
+    metrics.unresolvedObjectiveDurationMs = 0;
+  }
+  return metrics;
 }
 
 export function startSimulation(state, payload = {}) {
@@ -369,7 +422,9 @@ export function applyProgressionFlags(state) {
   ensureLifecycleState(state);
   ensureProfileState(state);
   ensureSimulationSubstate(state);
+  ensureGuidanceMetrics(state);
   updateChapter(state);
+  updateGuidanceMetrics(state);
   state.bootCount += 1;
   state.driftMinutes += (Math.random() < 0.4 ? (Math.random() < 0.5 ? -1 : 1) : 0);
   return state;

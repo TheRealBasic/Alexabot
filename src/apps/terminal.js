@@ -1,6 +1,6 @@
-import { clearState, incrementFileView, appendManifestationEvent, clearSimulation } from "../state.js";
-import { consumeManifestation, isManifestationActive } from "../progression/reactions.js";
-import { runScenario, stepScenario, forkBranch, replaySeed } from "../simulation/engine.js";
+import { appendManifestationEvent, clearSimulation, clearState, incrementFileView, recordCommandTelemetry } from "../state.js";
+import { consumeManifestation, consumeTieredHint, isManifestationActive } from "../progression/reactions.js";
+import { forkBranch, replaySeed, runScenario, stepScenario } from "../simulation/engine.js";
 import { ensureSimulationState, serializeSimulationSnapshot } from "../simulation/serializer.js";
 import { getServiceStatusTable, getServiceTrace, restartService } from "../systems/simulator.js";
 import { listScenarioDefinitions } from "../simulation/scenarios.js";
@@ -293,7 +293,13 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
 
 
 
+    function reportGuidanceHint() {
+      const hint = consumeTieredHint(state);
+      if (hint) print(`[hint] ${hint}`);
+    }
+
     function handle(cmdLine) {
+      let commandSucceeded = true;
       if (!cmdLine) return;
       const [cmd, ...args] = cmdLine.split(/\s+/);
       const action = parseTerminalAction(cmdLine);
@@ -302,6 +308,10 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       if (!canRunCommand(role, cmd) && !isActionCommand) {
         print("permission denied for current role");
         win?.setHealth?.("fault");
+        commandSucceeded = false;
+        recordCommandTelemetry(state, { success: false });
+        reportGuidanceHint();
+        saveState();
         return;
       }
 
@@ -316,22 +326,22 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       else if (cmd === "pwd") print(cwd);
       else if (cmd === "history") printHistory();
       else if (cmd === "anomaly-hint") {
-        if (role !== "observer") print("anomaly-hint: restricted to observer");
+        if (role !== "observer") { print("anomaly-hint: restricted to observer"); commandSucceeded = false; }
         else print(state.relaySignal?.code ? `transient relay code: ${state.relaySignal.code}` : "monitor incident log for transient code flashes");
       } else if (cmd === "date") print(new Date(Date.now() + state.driftMinutes * 60_000).toString());
       else if (cmd === "ls") {
         const p = normalizePath(cwd, args[0]);
         const entries = getDirectoryEntries(p, state);
-        if (!fs[p]) { print("ls: path not found"); win?.setHealth?.("stale"); }
+        if (!fs[p]) { print("ls: path not found"); win?.setHealth?.("stale"); commandSucceeded = false; }
         else { print(entries.filter((x) => state.unlocked.archive || !x.startsWith(".")).join("  ")); win?.setHealth?.("active"); }
       } else if (cmd === "cd") {
         const p = normalizePath(cwd, args[0]);
         if (fs[p]) cwd = p;
-        else { print("cd: no such directory"); win?.setHealth?.("stale"); }
+        else { print("cd: no such directory"); win?.setHealth?.("stale"); commandSucceeded = false; }
       } else if (cmd === "cat") {
         const p = normalizePath(cwd, args[0]);
-        if (!isContentVisible(p, state)) print("cat: file not found");
-        else if (p === "/logs/audit_redacted.log" && !state.unlocked.redactedLog && role !== "observer") print("cat: permission denied");
+        if (!isContentVisible(p, state)) { print("cat: file not found"); commandSucceeded = false; }
+        else if (p === "/logs/audit_redacted.log" && !state.unlocked.redactedLog && role !== "observer") { print("cat: permission denied"); commandSucceeded = false; }
         else {
           print(getDynamicFile(p) || "cat: file not found");
           incrementFileView(state, p);
@@ -342,15 +352,18 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       } else if (cmd === "clear") out.textContent = "";
       else if (action?.parseError) {
         print(action.parseError);
+        commandSucceeded = false;
       } else if (isActionCommand) {
         if (role !== "operator" && action.type !== "CMD_OBSERVER_PING") {
           print("command restricted to operator role");
+          commandSucceeded = false;
         } else {
           const result = completeObjective(action);
           if (result?.accepted === false && state.sessionMode === "coop") {
             print("queued for server confirmation...");
           }
           for (const line of result?.terminalLines || []) print(line);
+          if ((result?.terminalLines || []).some((line) => /denied|invalid|expired|not found|required context missing|no active signal/i.test(String(line)))) commandSucceeded = false;
           if (["CMD_UNLOCK_ARCHIVE", "CMD_SET_TIME", "CMD_RECOVER_MANIFEST", "CMD_STRINGS", "CMD_EXEC_RELAY", "CMD_OBSERVER_PING"].includes(action.type)) {
             completeObjective({ type: "objective.complete", objectiveId: "onboarding_progression_command" });
           }
@@ -360,15 +373,15 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       } else if ((cmd === "service" || cmd === "svc") && args[0] === "status") {
         serviceStatus(args[1]);
       } else if ((cmd === "service" || cmd === "svc") && args[0] === "restart") {
-        if (role !== "operator") print("service restart: restricted to operator");
+        if (role !== "operator") { print("service restart: restricted to operator"); commandSucceeded = false; }
         else {
           const result = restartService(state, args[1] || "", "terminal");
-          if (!result.ok) print(result.message);
+          if (!result.ok) { print(result.message); commandSucceeded = false; }
           else print(`service ${args[1]}: restart completed`);
         }
       } else if ((cmd === "service" || cmd === "svc") && args[0] === "trace") {
         const trace = getServiceTrace(state, args[1] || "");
-        if (!trace.ok) print(trace.message);
+        if (!trace.ok) { print(trace.message); commandSucceeded = false; }
         else print(trace.lines.join("\n"));
       } else if (cmd === "pkg" && args[0] === "list") {
         print(getDynamicFile("/var/lib/pkg/status") || "pkg database unavailable");
@@ -388,7 +401,7 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       } else if (cmd === "tail") {
         const p = normalizePath(cwd, args[0]);
         const body = getDynamicFile(p);
-        if (!body) print("tail: file not found");
+        if (!body) { print("tail: file not found"); commandSucceeded = false; }
         else print(String(body).split("\n").slice(-8).join("\n"));
       } else if (cmd === "sim") {
         handleSimulationCommand(args);
@@ -397,11 +410,13 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
         clearState();
         notify?.("Session state cleared. Reloading...", { actor: actorLabel(state.playerId) });
         setTimeout(() => window.location.reload(), 250);
-      } else { print("command not found"); win?.setHealth?.("fault"); }
+      } else { print("command not found"); win?.setHealth?.("fault"); commandSucceeded = false; }
 
       if (cmdLine.includes("shutdown") || cmdLine.includes("exit")) {
         print("session cannot be terminated while continuity is pending");
       }
+      recordCommandTelemetry(state, { success: commandSucceeded });
+      reportGuidanceHint();
       saveState();
     }
 
