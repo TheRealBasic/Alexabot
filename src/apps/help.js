@@ -4,6 +4,7 @@ import { COPY } from "../ui/copy.js";
 export function openHelp({ makeWindow, state }) {
   makeWindow("help", COPY.apps.help, (content, win) => {
     const chapterHint = COPY.help.chapterHints[state.chapter] || COPY.help.chapterHints[3];
+    const chapterRecap = COPY.help.chapterRecaps[state.chapter] || COPY.help.chapterRecaps[3];
 
     const quickStartItems = getOnboardingChecklistItems(state, state.activeRole, 4);
     const quickStartHtml = quickStartItems.length
@@ -20,6 +21,8 @@ export function openHelp({ makeWindow, state }) {
       </ul>
       <h5 style='margin:10px 0 6px'>${COPY.help.quickStart} (${state.activeRole})</h5>
       ${quickStartHtml}
+      <h5 style='margin:10px 0 6px'>What is happening right now?</h5>
+      <p>${chapterRecap}</p>
       <p class='notice'>${chapterHint}</p></div></div>`;
     win?.setHealth?.('active');
   });

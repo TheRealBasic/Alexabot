@@ -134,6 +134,11 @@ export const COPY = {
       1: "Operator note: validate continuity records before credential elevation steps.",
       2: "Operator note: use maintenance-window behavior when recovering deleted objects.",
       3: "Operator note: reconcile system logs with recovered correspondence for final accounting."
+    },
+    chapterRecaps: {
+      1: "Act I: Identity drift is underway. Confirm continuity records and establish what parts of the archive can be trusted.",
+      2: "Act II: Recovery is live. Pull deleted material during the maintenance window and decode withheld evidence.",
+      3: "Act III: Accounting phase. Reconcile directives, testimony, and trust outcomes before the system settles on one narrative."
     }
   },
   settings: {
