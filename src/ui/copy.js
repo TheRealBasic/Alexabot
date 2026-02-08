@@ -52,7 +52,7 @@ export const COPY = {
     media: "Signal Review",
     settings: "Workstation Settings",
     help: "Operations Manual",
-    chat: "AI Console",
+    chat: "The Wakeful Thread",
     menuLabel: "Program Launcher",
     reset: "Reset Workstation",
     shutdown: "Power Down"
