@@ -89,16 +89,29 @@ function sanitizeString(value, maxLength = 200) {
   return trimmed.slice(0, maxLength);
 }
 
-function rejectAction(socket, reason, { roomId, playerId, role, rawAction }) {
+function rejectAction(socket, reason, { roomId, playerId, role, rawAction, details = {} }) {
   console.warn(`[action.rejected] room=${roomId} player=${playerId} role=${role} reason=${reason} actionType=${rawAction?.type || "unknown"}`);
   if (socket.readyState === socket.OPEN) {
     socket.send(JSON.stringify({
       type: "action.rejected",
       reason,
       action: rawAction || null,
+      ...details,
       meta: { roomId, playerId, role }
     }));
   }
+}
+
+function parseExpectedVersion(value) {
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric < 1) return null;
+  return numeric;
+}
+
+function parseClientSequence(value) {
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric < 1) return null;
+  return numeric;
 }
 
 function applyCursorMove(room, normalizedAction) {
@@ -214,7 +227,8 @@ function createRoom(roomId) {
       playerId: "server"
     },
     sockets: new Set(),
-    saveTimer: null
+    saveTimer: null,
+    processedClientSequences: new Map()
   };
   rooms.set(roomId, room);
   return room;
@@ -228,7 +242,8 @@ function hydrateRoomRecord(record) {
     lastSavedAt: record.lastSavedAt || null,
     state: record.state,
     sockets: new Set(),
-    saveTimer: null
+    saveTimer: null,
+    processedClientSequences: new Map()
   };
 }
 
@@ -361,8 +376,58 @@ wss.on("connection", (socket) => {
     if (message.type !== "action") return;
     if (!joinedSession) return;
 
+    const expectedVersion = parseExpectedVersion(message.expectedVersion);
+    if (expectedVersion === null) {
+      rejectAction(socket, "missing expected_version", {
+        roomId: room.roomId,
+        playerId: joinedSession.playerId,
+        role: joinedSession.role,
+        rawAction: message.action || {}
+      });
+      return;
+    }
+
+    if (expectedVersion !== room.version) {
+      const rawAction = message.action || {};
+      rejectAction(socket, "version_mismatch", {
+        roomId: room.roomId,
+        playerId: joinedSession.playerId,
+        role: joinedSession.role,
+        rawAction,
+        details: { version: room.version }
+      });
+      return;
+    }
+
     const previous = structuredClone(room.state);
     const rawAction = message.action || {};
+    const clientSequence = parseClientSequence(rawAction.clientSequence);
+    if (clientSequence === null) {
+      rejectAction(socket, "missing client_sequence", {
+        roomId: room.roomId,
+        playerId: joinedSession.playerId,
+        role: joinedSession.role,
+        rawAction
+      });
+      return;
+    }
+
+    const dedupeKey = `${joinedSession.playerId}:${clientSequence}`;
+    const seenVersion = room.processedClientSequences.get(dedupeKey);
+    if (seenVersion !== undefined) {
+      socket.send(JSON.stringify({
+        type: "action.applied",
+        action: { ...rawAction, playerId: joinedSession.playerId, clientSequence },
+        meta: {
+          roomId: room.roomId,
+          version: seenVersion,
+          playerId: joinedSession.playerId,
+          role: joinedSession.role,
+          deduped: true
+        }
+      }));
+      return;
+    }
 
     if (!canPerformAction(joinedSession.role, rawAction)) {
       socket.close(CLOSE_CODES.forbidden, "insufficient role permissions");
@@ -380,9 +445,15 @@ wss.on("connection", (socket) => {
       return;
     }
     const action = normalized.action;
+    action.clientSequence = clientSequence;
     ACTION_HANDLERS[action.type](room, action);
 
     room.version += 1;
+    room.processedClientSequences.set(dedupeKey, room.version);
+    if (room.processedClientSequences.size > 5000) {
+      const oldest = room.processedClientSequences.keys().next().value;
+      if (oldest) room.processedClientSequences.delete(oldest);
+    }
     room.versionHistory = [...(room.versionHistory || []), { version: room.version, timestamp: Date.now() }].slice(-100);
     scheduleSave(room);
     const meta = { roomId: room.roomId, version: room.version, playerId: joinedSession.playerId, role: joinedSession.role };
