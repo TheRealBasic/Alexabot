@@ -280,7 +280,7 @@ const getDynamicFile = (path) => getDynamicFileBase(path, state);
 evaluateBehaviorReactions({ state, fs, saveState: persist });
 rehydrateContentFromState(state);
 
-const { makeWindow } = createWindowManager({ desktopRoot, taskList });
+const { makeWindow } = createWindowManager({ desktopRoot, taskList, state, persistState: persist });
 
 const appContext = {
   makeWindow,
