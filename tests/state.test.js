@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultState, completeObjective, getActiveObjectives, getProgressSignature, incrementFileView } from '../src/state.js';
+import { defaultState, completeObjective, getActiveObjectives, getProgressSignature, incrementFileView, applyProgressionFlags } from '../src/state.js';
 
 function makeState() {
   return JSON.parse(JSON.stringify(defaultState));
@@ -36,4 +36,15 @@ test('active objectives are filtered by role', () => {
   assert.ok(operatorObjectives.includes('unlock_archive'));
   assert.ok(!operatorObjectives.includes('observer_ping_operator'));
   assert.ok(observerObjectives.includes('observer_ping_operator'));
+});
+
+test('applyProgressionFlags restores ai memory defaults', () => {
+  const state = { bootCount: 0, driftMinutes: 0 };
+  applyProgressionFlags(state);
+
+  assert.equal(state.aiAffinity, 0);
+  assert.equal(state.aiParanoia, 0);
+  assert.equal(state.aiTrustInPlayer, 0);
+  assert.equal(state.aiContradictionCount, 0);
+  assert.deepEqual(state.aiLastTopics, []);
 });

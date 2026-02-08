@@ -24,6 +24,11 @@ export const defaultState = {
   notesDraft: "",
   notesRevisions: [],
   notesConflictMarkers: [],
+  aiAffinity: 0,
+  aiParanoia: 0,
+  aiTrustInPlayer: 0,
+  aiContradictionCount: 0,
+  aiLastTopics: [],
   viewed: {},
   complianceScore: 0,
   sessionId: Math.floor(Math.random() * 1e6),
@@ -64,6 +69,14 @@ function ensureTrustState(state) {
   if (typeof state.teamTrustScore !== "number") state.teamTrustScore = 0;
   if (!state.playerDivergence || typeof state.playerDivergence !== "object") state.playerDivergence = {};
   if (!Array.isArray(state.recentConflicts)) state.recentConflicts = [];
+}
+
+function ensureAiMemoryState(state) {
+  if (typeof state.aiAffinity !== "number") state.aiAffinity = 0;
+  if (typeof state.aiParanoia !== "number") state.aiParanoia = 0;
+  if (typeof state.aiTrustInPlayer !== "number") state.aiTrustInPlayer = 0;
+  if (typeof state.aiContradictionCount !== "number") state.aiContradictionCount = 0;
+  if (!Array.isArray(state.aiLastTopics)) state.aiLastTopics = [];
 }
 
 export function loadState() {
@@ -202,6 +215,7 @@ export function applyProgressionFlags(state) {
     state.notesConflictMarkers = [];
   }
   ensureTrustState(state);
+  ensureAiMemoryState(state);
   updateChapter(state);
   state.bootCount += 1;
   state.driftMinutes += (Math.random() < 0.4 ? (Math.random() < 0.5 ? -1 : 1) : 0);
