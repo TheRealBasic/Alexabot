@@ -479,7 +479,8 @@ textarea {
 }
 
 .objective-panel ul,
-.onboarding-panel ul {
+.onboarding-panel ul,
+.recap-panel ul {
   margin: var(--space-0);
   padding-left: var(--space-7);
 }
@@ -490,6 +491,11 @@ textarea {
 
 .onboarding-panel ul {
   color: #c2d7eb;
+}
+
+.recap-panel p {
+  color: #c7dced;
+  margin: 0 0 var(--space-3);
 }
 
 .onboarding-actions {

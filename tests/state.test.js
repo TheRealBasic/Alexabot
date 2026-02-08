@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyProgressionFlags, completeObjective, defaultState, getActiveObjectives, getProgressSignature, incrementFileView, recordCommandTelemetry, updateGuidanceMetrics } from '../src/state.js';
+import { applyProgressionFlags, completeObjective, defaultState, getActiveObjectives, getProgressSignature, incrementFileView, recordCommandTelemetry, refreshChapterFromState, updateGuidanceMetrics } from '../src/state.js';
 
 function makeState() {
   return JSON.parse(JSON.stringify(defaultState));
@@ -116,4 +116,24 @@ test('completing an objective resets hint intensity state', () => {
   assert.equal(state.guidanceMetrics.hintTier, 0);
   assert.equal(state.guidanceMetrics.failedCommandStreak, 0);
   assert.equal(state.guidanceMetrics.lastHintTierPrompted, 0);
+});
+
+
+test('refreshChapterFromState returns chapter transition metadata', () => {
+  const state = makeState();
+  state.completedObjectives = ['unlock_archive', 'set_time_0311'];
+
+  const update = refreshChapterFromState(state);
+
+  assert.equal(update.previousChapter, 1);
+  assert.equal(update.chapter, 2);
+  assert.equal(update.chapterChanged, true);
+});
+
+test('applyProgressionFlags restores recap state defaults', () => {
+  const state = { bootCount: 0, driftMinutes: 0 };
+  applyProgressionFlags(state);
+
+  assert.equal(state.lastRecap, null);
+  assert.deepEqual(state.recapHistory, []);
 });
