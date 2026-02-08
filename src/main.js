@@ -1,7 +1,7 @@
 import { applyProgressionFlags, clearState, getActiveObjectives, getProgressSignature, loadState, refreshChapterFromState, saveState } from "./state.js";
 import { fs, files, getDirectoryEntries, getDynamicFile as getDynamicFileBase, isContentVisible, rehydrateContentFromState } from "./content.js";
 import { createWindowManager } from "./windowManager.js";
-import { runBoot } from "./boot.js";
+import { applyLifecycleEvent, runBoot } from "./boot.js";
 import { createMultiplayerClient, applyIncrementalPatch } from "./multiplayer/client.js";
 import { applyAction } from "./progression/reducer.js";
 import {
@@ -77,6 +77,7 @@ let desktopInitialized = false;
 
 let connectionQuality = "offline";
 let syncState = "idle";
+const bootServiceNotifications = [];
 
 function setTrayHealth(el, value = "") {
   const upper = String(value).toUpperCase();
@@ -421,6 +422,24 @@ function openStartupNotification() {
   notify(startupText);
 }
 
+function triggerLifecycle(eventType) {
+  if (state.sessionMode === "coop") {
+    notify(COPY.notifications.lifecycleBlocked);
+    return;
+  }
+  const report = applyLifecycleEvent(state, eventType);
+  if (!Array.isArray(state.lifecycleHistory)) state.lifecycleHistory = [];
+  state.lifecycleHistory.push({
+    id: report.id,
+    eventType,
+    timestamp: report.timestamp,
+    summary: report.summary
+  });
+  state.lifecycleHistory = state.lifecycleHistory.slice(-8);
+  saveState(state);
+  window.location.reload();
+}
+
 function initDesktop() {
   if (desktopInitialized) return;
   desktopInitialized = true;
@@ -479,16 +498,23 @@ function initDesktop() {
   };
   startMenuItems.appendChild(reset);
 
-  const shutdown = document.createElement("button");
-  shutdown.className = "start-item";
-  shutdown.type = "button";
-  shutdown.textContent = COPY.apps.shutdown;
-  shutdown.onclick = () => {
-    notify(COPY.notifications.shutdownBlocked);
-    state.complianceScore -= 1;
-    save();
+  const restart = document.createElement("button");
+  restart.className = "start-item";
+  restart.type = "button";
+  restart.textContent = COPY.apps.restart;
+  restart.onclick = () => {
+    triggerLifecycle("restart");
   };
-  startMenuItems.appendChild(shutdown);
+  startMenuItems.appendChild(restart);
+
+  const crash = document.createElement("button");
+  crash.className = "start-item";
+  crash.type = "button";
+  crash.textContent = COPY.apps.crash;
+  crash.onclick = () => {
+    triggerLifecycle("crash");
+  };
+  startMenuItems.appendChild(crash);
 
   startBtn.onclick = () => {
     startMenu.classList.toggle("is-open");
@@ -566,7 +592,23 @@ loginBtn.onclick = () => {
   if (state.bootCount > 1) openExplorer(appContext);
   if (state.bootCount > 2) setTimeout(() => openTerminal(appContext), 500);
   openStartupNotification();
+  for (const message of bootServiceNotifications) notify(message);
+  if (state.pendingRecoveryNotice && state.lastBootReport) {
+    notify(`Recovered previous session — diagnostics: /logs/diagnostics/last_boot_report.log`);
+    if (state.panicFragment) notify(`panic fragment captured: /logs/diagnostics/panic_fragment.log`);
+    state.pendingRecoveryNotice = false;
+  }
   save();
 };
 
-runBoot({ state, bootText, bootEl, splash, login, lastSession });
+runBoot({
+  state,
+  bootText,
+  bootEl,
+  splash,
+  login,
+  lastSession,
+  onService: (service) => {
+    bootServiceNotifications.push(`boot service ${service.name}: ${service.status}`);
+  }
+});
