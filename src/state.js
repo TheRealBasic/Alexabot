@@ -49,6 +49,10 @@ export const defaultState = {
     archiveUnlock: false,
     maintenance311: false,
     finalReveal: false
+  },
+  uiHints: {
+    onboardingDismissed: false,
+    onboardingDismissedChapter: 0
   }
 };
 
@@ -69,7 +73,8 @@ export function loadState() {
         roles: { ...defaultState.roles, ...(parsed.roles || {}) },
         playerRoles: { ...defaultState.playerRoles, ...(parsed.playerRoles || {}) },
         reactionFlags: { ...defaultState.reactionFlags, ...(parsed.reactionFlags || {}) },
-        cinematicSeen: { ...defaultState.cinematicSeen, ...(parsed.cinematicSeen || {}) }
+        cinematicSeen: { ...defaultState.cinematicSeen, ...(parsed.cinematicSeen || {}) },
+        uiHints: { ...defaultState.uiHints, ...(parsed.uiHints || {}) }
       }
       : { ...defaultState };
   } catch {
@@ -156,6 +161,11 @@ export function applyProgressionFlags(state) {
   }
   if (!state.chapter) {
     state.chapter = 1;
+  }
+  if (!state.uiHints || typeof state.uiHints !== "object") {
+    state.uiHints = { ...defaultState.uiHints };
+  } else {
+    state.uiHints = { ...defaultState.uiHints, ...state.uiHints };
   }
   ensureTrustState(state);
   updateChapter(state);
