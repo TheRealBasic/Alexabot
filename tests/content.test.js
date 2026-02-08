@@ -30,3 +30,14 @@ test('includes non-story OS directories at root', () => {
   assert.ok(entries.includes('etc'));
   assert.ok(entries.includes('proc'));
 });
+
+
+test('rehydrates simulation artifact entries', () => {
+  const state = makeState();
+  state.simulationState.activeRunId = 'sim-test';
+  state.simulationState.selectedBranch = 'main';
+  rehydrateContentFromState(state);
+
+  assert.ok(fs['/logs/simulations'].includes('sim-test.log'));
+  assert.ok(fs['/home/operator/docs/projections'].includes('sim-test_summary.txt'));
+});

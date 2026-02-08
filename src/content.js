@@ -3,14 +3,16 @@ export const fs = {
   "/home": ["operator", "guest"],
   "/home/operator": ["desktop", "Desktop", "docs", "mail", "drafts", "Documents", "Downloads", ".config", ".cache", ".local", "notes.txt", ".bash_history", ".profile"],
   "/home/operator/desktop": ["todo.txt", "family_photo.jpg", "readme.url"],
-  "/home/operator/docs": ["continuity_overview.txt", "meeting_minutes_2003-04-17.txt", "statement_draft.txt", "act2_transition.txt", "act3_transition.txt"],
+  "/home/operator/docs": ["continuity_overview.txt", "meeting_minutes_2003-04-17.txt", "statement_draft.txt", "act2_transition.txt", "act3_transition.txt", "projections"],
   "/home/operator/mail": ["inbox_03.mbox", "unsent_7.eml"],
+  "/home/operator/docs/projections": [],
   "/home/operator/drafts": ["scratch.txt", "do_not_archive.txt"],
   "/home/guest": ["note.txt"],
   "/system": ["boot.cfg", "users.db", "help", "drivers", "time.dat"],
   "/system/help": ["shell_help.txt", "recovery_help.txt", "known_issues.txt"],
-  "/logs": ["kernel.log", "session.log", "incident.log", "audit_redacted.log", "final_directive.log", "diagnostics"],
+  "/logs": ["kernel.log", "session.log", "incident.log", "audit_redacted.log", "final_directive.log", "diagnostics", "simulations"],
   "/logs/diagnostics": ["last_boot_report.log", "panic_fragment.log"],
+  "/logs/simulations": [],
   "/media": ["lullaby.wav", "hallway_capture.avi", "cam2_20030418.dat", "usb_old"],
   "/.cache": ["profile.snapshot", "shadow.idx", "deleted_manifest.tmp"],
   "/home/operator/Documents": ["budget_2002.csv", "report_final_v2_FINAL.txt", "scan_receipt_0412.txt"],
@@ -60,7 +62,7 @@ export const files = {
   "/home/guest/note.txt": "guest account disabled on request of 'operator'",
   "/system/boot.cfg": "KERNEL=/boot/kernel.img\nRECOVERY=true\nSILENT=false\nOBSERVER=enabled",
   "/system/users.db": "operator:x:1000:1000\nguest:x:1001:1001 [locked]\narchive:?:?:?",
-  "/system/help/shell_help.txt": "Commands: help, ls, cd, cat, clear, pwd, unlock archive, set-time HH:MM, recover --manifest, strings <file>, whoami, history, date, anomaly-hint, ping operator, relay exec <code>, ps, service status, service restart <name>, pkg list, pkg history, appinfo <name>, net status, net history, tail <file>, reset-session",
+  "/system/help/shell_help.txt": "Commands: help, ls, cd, cat, clear, pwd, unlock archive, set-time HH:MM, recover --manifest, strings <file>, whoami, history, date, anomaly-hint, ping operator, relay exec <code>, ps, service status, service restart <name>, pkg list, pkg history, appinfo <name>, net status, net history, tail <file>, sim <subcommand>, reset-session",
   "/system/help/recovery_help.txt": "To restore deleted objects:\n1) access /.cache/deleted_manifest.tmp\n2) run: recover --manifest\nNote: command denied outside maintenance window 03:11-03:13",
   "/system/help/known_issues.txt": "Issue #44: clock drift exactly 47 minutes after outage.\nIssue #51: session daemon may address user by previous name.",
   "/system/drivers": "[directory listing hidden]",
@@ -184,6 +186,13 @@ export function rehydrateContentFromState(state) {
     ensureEntry("/home/operator/mail", "observer_followup.eml");
   }
 
+  const sim = state.simulationState || {};
+  if (sim.activeRunId) {
+    ensureEntry("/logs/simulations", `${sim.activeRunId}.log`);
+    ensureEntry("/home/operator/docs/projections", `${sim.activeRunId}_summary.txt`);
+    if (sim.selectedBranch) ensureEntry("/home/operator/docs/projections", `${sim.activeRunId}_${sim.selectedBranch}.txt`);
+  }
+
   if (state.chapter >= 3) {
     const trustRoute = getTrustTrajectory(state);
     if (trustRoute === "high") {
@@ -212,6 +221,20 @@ export function getDirectoryEntries(path, state) {
 
 export function getDynamicFile(path, state) {
   if (!isContentVisible(path, state)) return undefined;
+
+  const sim = state.simulationState || {};
+  if (path.startsWith("/logs/simulations/") && path.endsWith(".log")) {
+    if (sim.artifacts && sim.artifacts[path]) return sim.artifacts[path];
+    return "simulation log unavailable";
+  }
+  if (path.startsWith("/home/operator/docs/projections/") && path.endsWith(".txt")) {
+    if (sim.artifacts && sim.artifacts[path]) return sim.artifacts[path];
+    if (sim.activeRunId) {
+      const metrics = sim.derivedMetrics || {};
+      return `Projection ${sim.activeRunId}\nScenario: ${sim.scenarioId || "unknown"}\nBranch: ${sim.selectedBranch || "main"}\nTrust=${metrics.trustScore || 0} Conflict=${metrics.conflictScore || 0} Pressure=${metrics.chapterPressure || 0}`;
+    }
+    return "projection unavailable";
+  }
 
   if (path === "/logs/audit_redacted.log" && state.activeRole === "observer") {
     return "[observer mirror] divergence index: 0.42\n[observer mirror] corrective branch armed\n[observer mirror] operator acknowledgement pending";
