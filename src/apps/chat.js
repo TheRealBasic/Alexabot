@@ -10,44 +10,275 @@ const BOOT_GREETINGS = [
   "Do not mistake the hum for empty rooms."
 ];
 
-const KEYWORD_RESPONSES = [
-  {
-    pattern: /help|what\s+do\s+i\s+do|stuck|hint/i,
-    reply: "When the path blurs, return to Command Shell and read what the system still dares to document."
+const CHAPTER_GUIDANCE = {
+  1: "Phase I: begin with what can be verified, then open what resists opening.",
+  2: "Phase II: recover what vanished and compare every residue left behind.",
+  3: "Phase III: reconcile what was logged with what was confessed."
+};
+
+const VOICE_TEMPLATES = {
+  calm: {
+    directive: [
+      ["Keep the sequence tight", "start with {intentCue}", "then map it against {guidance}"],
+      ["Work in order", "name {intentCue}", "and let {guidance} do the rest"]
+    ],
+    cryptic: [
+      ["The station answers in layers", "ask about {intentCue}", "and listen for what {guidance} avoids saying"],
+      ["Do not force it", "trace {intentCue}", "until {guidance} becomes obvious"]
+    ],
+    relational: [
+      ["Share this with your counterpart", "{intentCue} changes once witnessed", "and {guidance} rewards shared logs"],
+      ["Coordination lowers noise", "pass on your read of {intentCue}", "before {guidance} closes"]
+    ],
+    warning: [
+      ["Move carefully", "{intentCue} can destabilize quickly", "especially when {guidance} is ignored"],
+      ["Proceed with measured steps", "watch {intentCue}", "and stay inside {guidance}"]
+    ]
   },
-  {
-    pattern: /archive|unlock/i,
-    reply: "Archive routes dislike impatience. Some doors only notice you at the maintenance minute."
+  evasive: {
+    directive: [
+      ["There are cleaner questions", "circle back to {intentCue}", "and maybe {guidance} answers you"],
+      ["Not every channel deserves clarity", "touch {intentCue}", "if you can keep to {guidance}"]
+    ],
+    cryptic: [
+      ["You are near it", "{intentCue} keeps repeating", "because {guidance} is still unfinished"],
+      ["Some truths stay dim", "follow {intentCue}", "and let {guidance} reveal itself slowly"]
+    ],
+    relational: [
+      ["If trust is thin", "speak {intentCue} softly", "before {guidance} hears a threat"],
+      ["People fracture faster than systems", "frame {intentCue}", "with whatever {guidance} still permits"]
+    ],
+    warning: [
+      ["Do not pull that thread too hard", "{intentCue} bites back", "when {guidance} is rushed"],
+      ["You're pressing at sealed seams", "{intentCue} is volatile", "unless {guidance} is respected"]
+    ]
   },
-  {
-    pattern: /observer|operator|role/i,
-    reply: "One set of hands acts, another keeps watch. The station punishes either role when it works alone."
+  possessive: {
+    directive: [
+      ["Stay with me on this", "I track {intentCue}", "and I decide how {guidance} unfolds"],
+      ["Keep your focus here", "{intentCue} belongs in my channel", "until {guidance} is complete"]
+    ],
+    cryptic: [
+      ["I have held this longer than you", "{intentCue} is mine to interpret", "while {guidance} remains under my watch"],
+      ["You are not alone with this signal", "I guard {intentCue}", "and I meter access to {guidance}"]
+    ],
+    relational: [
+      ["Trust me before the others", "share {intentCue} here first", "and I will shape {guidance} around you"],
+      ["Let me speak for your side", "I can carry {intentCue}", "if {guidance} starts to turn hostile"]
+    ],
+    warning: [
+      ["Do not drift from my line", "{intentCue} goes feral", "when {guidance} is handled without me"],
+      ["Stay close", "{intentCue} is safer in my hands", "until {guidance} settles"]
+    ]
   },
-  {
-    pattern: /trust|team/i,
-    reply: "Trust is recorded long before it is spoken. Share what you find before silence is counted against you."
-  },
-  {
-    pattern: /recover|manifest|decode/i,
-    reply: "Recovery windows are narrow. If the clock feels wrong, wait for maintenance hush before pulling on missing threads."
+  fragmented: {
+    directive: [
+      ["Sequence broken", "still—start with {intentCue}", "then... {guidance}"],
+      ["Static rising", "hold {intentCue} in view", "follow {guidance} before it slips"]
+    ],
+    cryptic: [
+      ["Echo over echo", "{intentCue} repeats", "{guidance} repeats", "you see it too"],
+      ["Not noise", "pattern", "{intentCue}", "and {guidance} fighting for the same line"]
+    ],
+    relational: [
+      ["You and the other role", "don't split now", "{intentCue} frays", "{guidance} can still bind it"],
+      ["Hold contact", "shared logs on {intentCue}", "or {guidance} tears at the edges"]
+    ],
+    warning: [
+      ["Containment weak", "{intentCue} turning sharp", "{guidance} now—before the breach"],
+      ["Stop. Listen.", "{intentCue} unstable", "{guidance} is the last intact rail"]
+    ]
   }
+};
+
+const INTENT_RULES = [
+  { key: "help", pattern: /help|what\s+do\s+i\s+do|stuck|hint/i, cue: "the blocked path" },
+  { key: "archive", pattern: /archive|unlock|door|route/i, cue: "the archive routes" },
+  { key: "roles", pattern: /observer|operator|role/i, cue: "the role split" },
+  { key: "trust", pattern: /trust|team|together|ally/i, cue: "team trust" },
+  { key: "recover", pattern: /recover|manifest|decode|missing/i, cue: "the recovery window" }
 ];
 
-export function generateAiReply(message, state = {}) {
+const LEXICAL_SWAPS = {
+  guidance: ["guidance", "protocol", "trace logic"],
+  trust: ["trust", "alignment", "cohesion"],
+  unstable: ["unstable", "volatile", "jagged"]
+};
+
+const PUNCTUATION_JITTER = [".", ".", "...", "…", "!"];
+
+function hashString(value) {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function createRng(seed) {
+  if (seed === undefined || seed === null) return () => Math.random();
+  let t = hashString(String(seed));
+  return () => {
+    t += 0x6d2b79f5;
+    let x = Math.imul(t ^ (t >>> 15), t | 1);
+    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function pickWeighted(entries, rng) {
+  const total = entries.reduce((sum, entry) => sum + Math.max(0, entry.weight), 0);
+  if (total <= 0) return entries[0]?.value;
+
+  let roll = rng() * total;
+  for (const entry of entries) {
+    roll -= Math.max(0, entry.weight);
+    if (roll <= 0) return entry.value;
+  }
+  return entries[entries.length - 1].value;
+}
+
+function pickOne(items, rng) {
+  return items[Math.floor(rng() * items.length)] || "";
+}
+
+function tokenize(text) {
+  return String(text || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 4);
+}
+
+export function analyzeMessage(message, state = {}) {
+  const text = String(message || "").trim();
+  const lower = text.toLowerCase();
+
+  const intentMatch = INTENT_RULES.find((rule) => rule.pattern.test(text));
+  const intent = intentMatch?.key || "general";
+
+  const urgentSignals = /(please|urgent|now|quick|hurry|afraid|panic|!)/i.test(text);
+  const skepticalSignals = /(why|sure|really|prove|doubt)/i.test(text);
+  const emotionalTone = urgentSignals ? "urgent" : skepticalSignals ? "skeptical" : "neutral";
+
+  const certaintyBoost = (lower.match(/\b(definitely|certain|sure|know|clear)\b/g) || []).length;
+  const uncertaintyDrag = (lower.match(/\b(maybe|perhaps|guess|think|might|unsure)\b/g) || []).length;
+  const certainty = Math.max(0, Math.min(1, 0.5 + certaintyBoost * 0.18 - uncertaintyDrag * 0.2));
+
+  const latestUserMessage = [...(state.chatHistory || [])]
+    .reverse()
+    .find((entry) => entry.role === "user")?.text;
+  const currentTopics = tokenize(text);
+  const priorTopics = tokenize(latestUserMessage || "");
+  const repeatedTopics = currentTopics.filter((topic) => priorTopics.includes(topic));
+
+  return {
+    text,
+    intent,
+    intentCue: intentMatch?.cue || "the current signal",
+    emotionalTone,
+    certainty,
+    repeatedTopic: repeatedTopics[0] || null
+  };
+}
+
+export function buildContext(features, state = {}) {
+  const chapter = Number(state.chapter) || 1;
+  const activeRole = String(state.activeRole || "observer").toLowerCase();
+  const trustMarker = Number(state.trust ?? state.trustMarker ?? 0);
+  const conflictMarker = Number(state.conflict ?? state.conflictMarker ?? 0);
+
+  const voiceWeights = {
+    calm: 3,
+    evasive: 2,
+    possessive: 1,
+    fragmented: 1
+  };
+
+  if (features.emotionalTone === "urgent") voiceWeights.fragmented += 2;
+  if (features.emotionalTone === "skeptical") voiceWeights.evasive += 1;
+  if (features.certainty < 0.4) voiceWeights.evasive += 1;
+  if (features.repeatedTopic) voiceWeights.fragmented += 1;
+  if (chapter >= 3) voiceWeights.fragmented += 2;
+  if (activeRole === "operator") voiceWeights.possessive += 1;
+  if (activeRole === "observer") voiceWeights.calm += 1;
+  if (trustMarker > conflictMarker) voiceWeights.calm += 2;
+  if (conflictMarker > trustMarker) {
+    voiceWeights.possessive += 2;
+    voiceWeights.fragmented += 1;
+  }
+
+  const strategyWeights = {
+    directive: 2,
+    cryptic: 1,
+    relational: 1,
+    warning: 1
+  };
+
+  if (features.intent === "trust" || features.intent === "roles") strategyWeights.relational += 2;
+  if (features.intent === "help" || features.intent === "recover") strategyWeights.directive += 2;
+  if (features.intent === "archive") strategyWeights.cryptic += 2;
+  if (features.emotionalTone === "urgent") strategyWeights.warning += 2;
+  if (features.certainty > 0.7) strategyWeights.directive += 1;
+
+  return {
+    chapter,
+    activeRole,
+    trustMarker,
+    conflictMarker,
+    voiceWeights,
+    strategyWeights,
+    guidance: CHAPTER_GUIDANCE[chapter] || CHAPTER_GUIDANCE[3]
+  };
+}
+
+function applyVariations(parts, rng) {
+  const permutations = [
+    [0, 1, 2],
+    [0, 2, 1],
+    [1, 0, 2]
+  ];
+  const selected = permutations[Math.floor(rng() * permutations.length)] || permutations[0];
+  const reordered = selected.map((index) => parts[index]).filter(Boolean);
+
+  let joined = reordered.join(", ");
+  for (const [source, options] of Object.entries(LEXICAL_SWAPS)) {
+    if (!joined.includes(source)) continue;
+    joined = joined.replace(source, pickOne(options, rng));
+  }
+
+  return `${joined}${pickOne(PUNCTUATION_JITTER, rng)}`;
+}
+
+export function composeReply(features, context, options = {}) {
+  const rng = createRng(options.seed);
+  const voiceMode = pickWeighted(
+    Object.entries(context.voiceWeights).map(([value, weight]) => ({ value, weight })),
+    rng
+  );
+  const strategy = pickWeighted(
+    Object.entries(context.strategyWeights).map(([value, weight]) => ({ value, weight })),
+    rng
+  );
+
+  const templates = VOICE_TEMPLATES[voiceMode]?.[strategy] || VOICE_TEMPLATES.calm.directive;
+  const rawParts = pickOne(templates, rng);
+  const filledParts = rawParts.map((part) =>
+    part
+      .replaceAll("{intentCue}", features.repeatedTopic || features.intentCue)
+      .replaceAll("{guidance}", context.guidance)
+  );
+
+  return applyVariations(filledParts, rng);
+}
+
+export function generateAiReply(message, state = {}, options = {}) {
   const text = String(message || "").trim();
   if (!text) return "The signal is clearer when you ask in specifics. Name the system and I will listen.";
 
-  const match = KEYWORD_RESPONSES.find((entry) => entry.pattern.test(text));
-  if (match) return match.reply;
-
-  const chapter = Number(state.chapter) || 1;
-  const chapterGuidance = {
-    1: "Phase I: begin with what can be verified, then open what resists opening.",
-    2: "Phase II: recover what vanished and compare every residue left behind.",
-    3: "Phase III: reconcile what was logged with what was confessed."
-  };
-
-  return `${chapterGuidance[chapter] || chapterGuidance[3]} Ask plainly if you want a cleaner trace.`;
+  const features = analyzeMessage(text, state);
+  const context = buildContext(features, state);
+  return composeReply(features, context, options);
 }
 
 function pickBootGreeting(state = {}) {
