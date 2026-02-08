@@ -679,3 +679,50 @@ textarea {
   line-height: 1.2;
   text-wrap: balance;
 }
+
+.chat-app {
+  height: 100%;
+  grid-template-rows: auto 1fr auto;
+}
+
+.chat-log {
+  overflow: auto;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.chat-bubble {
+  border: 1px solid #345874;
+  background: rgba(8, 24, 38, 0.85);
+  padding: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.chat-user {
+  border-color: #4a6f8e;
+}
+
+.chat-ai {
+  border-color: #3f6b56;
+  background: rgba(9, 26, 21, 0.85);
+}
+
+.chat-author {
+  font-family: var(--font-mono);
+  color: #a8c2d9;
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+}
+
+.chat-controls {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.chat-controls .btn-primary {
+  width: auto;
+  margin-top: 0;
+  min-width: 96px;
+}
