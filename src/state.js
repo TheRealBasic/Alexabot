@@ -20,7 +20,10 @@ export const defaultState = {
   unlocked: { archive: false, redactedLog: false, mediaReveal: false },
   recoveredFiles: false,
   terminalHistory: [],
+  forensicTrail: [],
   notesDraft: "",
+  notesRevisions: [],
+  notesConflictMarkers: [],
   viewed: {},
   complianceScore: 0,
   sessionId: Math.floor(Math.random() * 1e6),
@@ -99,6 +102,23 @@ export function incrementFileView(state, path) {
   state.viewed[path] = (state.viewed[path] || 0) + 1;
 }
 
+export function appendForensicTrace(state, category, detail, actor = state.activeRole || "operator") {
+  if (!Array.isArray(state.forensicTrail)) state.forensicTrail = [];
+  state.forensicTrail.push({
+    timestamp: Date.now(),
+    category,
+    detail,
+    actor
+  });
+  state.forensicTrail = state.forensicTrail.slice(-40);
+}
+
+
+export function appendTerminalEvent(state, command, actor = state.activeRole || "operator") {
+  if (!Array.isArray(state.terminalHistory)) state.terminalHistory = [];
+  state.terminalHistory.push({ command, actor, timestamp: Date.now() });
+}
+
 export function completeObjective(state, objectiveId) {
   if (!state.completedObjectives.includes(objectiveId)) {
     state.completedObjectives.push(objectiveId);
@@ -171,6 +191,15 @@ export function applyProgressionFlags(state) {
   }
   if (!state.windowLayout || typeof state.windowLayout !== "object") {
     state.windowLayout = {};
+  }
+  if (!Array.isArray(state.forensicTrail)) {
+    state.forensicTrail = [];
+  }
+  if (!Array.isArray(state.notesRevisions)) {
+    state.notesRevisions = [];
+  }
+  if (!Array.isArray(state.notesConflictMarkers)) {
+    state.notesConflictMarkers = [];
   }
   ensureTrustState(state);
   updateChapter(state);
