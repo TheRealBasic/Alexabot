@@ -1,4 +1,5 @@
 import { incrementFileView } from "../state.js";
+import { COPY } from "../ui/copy.js";
 
 function buildVisibleDirectories(fs, state) {
   return Object.keys(fs)
@@ -12,7 +13,7 @@ function getDepth(path) {
 }
 
 export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntries, state, completeObjective, saveState }) {
-  makeWindow("explorer", "File Explorer", (content) => {
+  makeWindow("explorer", COPY.apps.explorer, (content) => {
     content.innerHTML = `<div class="explorer-layout"><div class="tree" id="dirTree"></div><div class="file-view"><div id="pathLabel" class="muted"></div><div id="fileList" style="margin-top:8px"></div><pre id="preview" style="white-space:pre-wrap; border-top:1px solid #2b4968; margin-top:8px; padding-top:8px;"></pre></div></div>`;
     const tree = content.querySelector("#dirTree");
     const pathLabel = content.querySelector("#pathLabel");
@@ -57,16 +58,16 @@ export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntri
           }
 
           if (full === "/logs/audit_redacted.log" && !state.unlocked.redactedLog && state.activeRole !== "observer") {
-            preview.innerHTML = "<span class='err'>ACCESS DENIED</span>\nHint: Synchronize local clock to 03:11 in System Settings.";
+            preview.innerHTML = COPY.explorer.deniedAudit;
             return;
           }
 
           if (full === "/media/cam2_20030418.dat" && !state.unlocked.mediaReveal) {
-            preview.innerHTML = "Binary data unreadable. Try terminal command: strings /media/cam2_20030418.dat";
+            preview.innerHTML = COPY.explorer.unreadableMedia;
             return;
           }
 
-          preview.textContent = getDynamicFile(full) || "[empty]";
+          preview.textContent = getDynamicFile(full) || COPY.explorer.empty;
           if (full === "/logs/audit_redacted.log" && (state.unlocked.redactedLog || state.activeRole === "observer")) {
             completeObjective({ type: "objective.complete", objectiveId: "access_redacted_audit" });
           }

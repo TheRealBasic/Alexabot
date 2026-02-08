@@ -17,6 +17,7 @@ import { openSettings } from "./apps/settings.js";
 import { openHelp } from "./apps/help.js";
 import { createPresentationController } from "./presentation.js";
 import { getOnboardingChecklistItems } from "./onboarding.js";
+import { COPY } from "./ui/copy.js";
 
 const params = new URLSearchParams(window.location.search);
 const roomId = params.get("room");
@@ -74,8 +75,8 @@ let connectionQuality = "offline";
 let syncState = "idle";
 
 function updateConnectionIndicators() {
-  trayConnection.textContent = `NET: ${connectionQuality.toUpperCase()}`;
-  traySync.textContent = `SYNC: ${syncState.toUpperCase()}`;
+  trayConnection.textContent = `${COPY.shell.tray.linkPrefix}: ${connectionQuality.toUpperCase()}`;
+  traySync.textContent = `${COPY.shell.tray.syncPrefix}: ${syncState.toUpperCase()}`;
 }
 
 function buildSessionUrl({ room, code, name, host }) {
@@ -201,19 +202,19 @@ const multiplayer = sessionMode === "coop"
     },
     onPresence: (presence) => {
       const connected = presence?.connectedCount || 0;
-      lobbyStatus.textContent = `Room presence: ${connected}/${presence?.capacity || 0}`;
+      lobbyStatus.textContent = `${COPY.lobby.presencePrefix}: ${connected}/${presence?.capacity || 0}`;
     },
     onRoomEvent: (event) => {
-      if (event.type === "player.joined") notify(`${event.player?.displayName || event.player?.playerId} joined room`);
-      if (event.type === "player.left") notify(`${event.player?.playerId} disconnected (grace window active)`);
+      if (event.type === "player.joined") notify(`${event.player?.displayName || event.player?.playerId} ${COPY.lobby.joinedSuffix}`);
+      if (event.type === "player.left") notify(`${event.player?.playerId} ${COPY.lobby.left}`);
     },
     onLobby: (rooms) => {
       if (!lobbyList) return;
       if (!Array.isArray(rooms) || !rooms.length) {
-        lobbyList.innerHTML = '<div class="notice">No public rooms yet.</div>';
+        lobbyList.innerHTML = `<div class="notice">${COPY.lobby.noNodes}</div>`;
         return;
       }
-      lobbyList.innerHTML = rooms.map((entry) => `<button class="start-item" data-room="${entry.roomId}" style="margin-bottom:4px;">${entry.displayName} · ${entry.connectedCount}/${entry.seats}${entry.hasAccessCode ? " · code" : ""}</button>`).join("");
+      lobbyList.innerHTML = rooms.map((entry) => `<button class="start-item" data-room="${entry.roomId}" style="margin-bottom:4px;">${entry.displayName} · ${entry.connectedCount}/${entry.seats}${entry.hasAccessCode ? " · keyed" : ""}</button>`).join("");
       for (const button of lobbyList.querySelectorAll("button[data-room]")) {
         button.onclick = () => {
           const selectedRoom = button.getAttribute("data-room");
@@ -226,7 +227,7 @@ const multiplayer = sessionMode === "coop"
         connectionQuality = status;
         updateConnectionIndicators();
       }
-      if (desktopInitialized) notify(`coop ${status}`);
+      if (desktopInitialized) notify(`${COPY.lobby.coopStatusPrefix} ${status}`);
     },
     onSyncStatus: (status) => {
       syncState = status;
@@ -297,9 +298,7 @@ const appContext = {
 };
 
 function getChapterLabel(chapter) {
-  if (chapter === 1) return "Act I // Orientation";
-  if (chapter === 2) return "Act II // Retrieval";
-  return "Act III // Disclosure";
+  return COPY.shell.chapterLabels[chapter] || COPY.shell.chapterLabels[3];
 }
 
 function mountObjectivePanel() {
@@ -317,18 +316,18 @@ function mountObjectivePanel() {
       .find((entry) => typeof entry !== "string" && entry.actor !== state.playerId);
     const relayCue = state.relaySignal
       ? (state.relaySignal.resolvedBy
-          ? `Relay acknowledged by ${state.relaySignal.resolvedBy}.`
-          : `Relay pending (${Math.max(0, Math.ceil((state.relaySignal.expiresAt - Date.now()) / 1000))}s remaining).`)
-      : "No active relay.";
+          ? `Relay handoff acknowledged by ${state.relaySignal.resolvedBy}.`
+          : `Relay handoff pending (${Math.max(0, Math.ceil((state.relaySignal.expiresAt - Date.now()) / 1000))}s remaining).`)
+      : COPY.shell.objectives.activeRelay;
     panel.innerHTML = `
       <div class="objective-title">${getChapterLabel(state.chapter)}</div>
-      <div class="objective-subtitle">Role: ${state.activeRole}</div>
-      <div class="notice">Team Trust: ${state.teamTrustScore || 0}</div>
-      <div class="notice">Teammate (${teammateRole}): ${teammateId}</div>
-      <div class="notice">${teammateActivity ? `Last teammate command: ${teammateActivity.command}` : "No teammate activity yet."}</div>
+      <div class="objective-subtitle">${COPY.shell.objectives.panelRole}: ${state.activeRole}</div>
+      <div class="notice">${COPY.shell.objectives.trust}: ${state.teamTrustScore || 0}</div>
+      <div class="notice">${COPY.shell.objectives.teammate} (${teammateRole}): ${teammateId}</div>
+      <div class="notice">${teammateActivity ? `${COPY.shell.objectives.teammateActivityPrefix}: ${teammateActivity.command}` : COPY.shell.objectives.noTeammateActivity}</div>
       <div class="notice">${relayCue}</div>
-      <div class="objective-subtitle">Active Objectives</div>
-      <ul>${active.map((objective) => `<li><strong>[${(objective.roles || ["operator"]).join("/")}]</strong> ${objective.label}</li>`).join("") || "<li>All objectives complete.</li>"}</ul>
+      <div class="objective-subtitle">${COPY.shell.objectives.activeObjectives}</div>
+      <ul>${active.map((objective) => `<li><strong>[${(objective.roles || ["operator"]).join("/")}]</strong> ${objective.label}</li>`).join("") || `<li>${COPY.shell.objectives.allDone}</li>`}</ul>
     `;
   };
 
@@ -352,15 +351,15 @@ function mountOnboardingPanel() {
     const checklist = getOnboardingChecklistItems(state, state.activeRole, 5);
     panel.style.display = "block";
     panel.innerHTML = `
-      <div class="objective-title">Quick Onboarding</div>
-      <div class="objective-subtitle">Role: ${state.activeRole}</div>
+      <div class="objective-title">${COPY.shell.onboarding.title}</div>
+      <div class="objective-subtitle">${COPY.shell.objectives.panelRole}: ${state.activeRole}</div>
       <ul>${checklist.map((item) => `<li>${item.hint}</li>`).join("") || "<li>All current objectives complete.</li>"}</ul>
       <div class="onboarding-actions">
-        <button type="button" data-open="terminal">Open Terminal</button>
-        <button type="button" data-open="explorer">Open Explorer</button>
-        <button type="button" data-open="help">Open Help</button>
+        <button type="button" data-open="terminal">Open Command Shell</button>
+        <button type="button" data-open="explorer">Open Node Directory</button>
+        <button type="button" data-open="help">Open Operations Manual</button>
       </div>
-      <button type="button" class="onboarding-dismiss" data-action="dismiss">Dismiss</button>
+      <button type="button" class="onboarding-dismiss" data-action="dismiss">${COPY.shell.onboarding.dismiss}</button>
     `;
 
     panel.querySelector('[data-open="terminal"]').onclick = () => openTerminal(appContext);
@@ -379,20 +378,16 @@ function mountOnboardingPanel() {
 }
 
 const apps = [
-  { name: "File Explorer", icon: "📁", roles: ["operator", "observer"], open: () => openExplorer(appContext) },
-  { name: "Terminal", icon: "⌨", roles: ["operator", "observer"], open: () => openTerminal(appContext) },
-  { name: "Notes", icon: "📝", roles: ["operator", "observer"], open: () => openNotes(appContext) },
-  { name: "Media Player", icon: "▶", roles: ["operator"], open: () => openMedia(appContext) },
-  { name: "System Settings", icon: "⚙", roles: ["operator"], open: () => openSettings(appContext) },
-  { name: "Help", icon: "?", roles: ["operator", "observer"], open: () => openHelp(appContext) }
+  { name: COPY.apps.explorer, icon: "📁", roles: ["operator", "observer"], open: () => openExplorer(appContext) },
+  { name: COPY.apps.terminal, icon: "⌨", roles: ["operator", "observer"], open: () => openTerminal(appContext) },
+  { name: COPY.apps.notes, icon: "📝", roles: ["operator", "observer"], open: () => openNotes(appContext) },
+  { name: COPY.apps.media, icon: "▶", roles: ["operator"], open: () => openMedia(appContext) },
+  { name: COPY.apps.settings, icon: "⚙", roles: ["operator"], open: () => openSettings(appContext) },
+  { name: COPY.apps.help, icon: "?", roles: ["operator", "observer"], open: () => openHelp(appContext) }
 ];
 
 function openStartupNotification() {
-  const startupText = [
-    "Act I initialized: verify archive pathway.",
-    "Act II initialized: recover and decode withheld artifacts.",
-    "Act III initialized: complete disclosure sequence."
-  ][Math.min(state.chapter - 1, 2)];
+  const startupText = COPY.notifications.startup[Math.min(state.chapter - 1, 2)];
 
   notify(startupText);
 }
@@ -404,6 +399,8 @@ function initDesktop() {
   syncOnboardingDismissalByChapter();
   renderObjectivePanel = mountObjectivePanel();
   renderOnboardingPanel = mountOnboardingPanel();
+
+  startBtn.textContent = COPY.apps.menuLabel;
 
   for (const app of apps) {
     if (Array.isArray(app.roles) && !app.roles.includes(state.activeRole)) continue;
@@ -436,13 +433,13 @@ function initDesktop() {
   const reset = document.createElement("button");
   reset.className = "start-item";
   reset.type = "button";
-  reset.textContent = "Reset Session";
+  reset.textContent = COPY.apps.reset;
   reset.onclick = () => {
     if (state.sessionMode === "coop") {
-      notify("Use a new room code to start a fresh co-op session.");
+      notify(COPY.lobby.freshSessionHint);
       return;
     }
-    const ok = window.confirm("Clear local session data and restart?");
+    const ok = window.confirm(COPY.notifications.resetConfirm);
     if (!ok) return;
     clearState();
     window.location.reload();
@@ -452,9 +449,9 @@ function initDesktop() {
   const shutdown = document.createElement("button");
   shutdown.className = "start-item";
   shutdown.type = "button";
-  shutdown.textContent = "Shut Down";
+  shutdown.textContent = COPY.apps.shutdown;
   shutdown.onclick = () => {
-    notify("Shutdown unavailable: archival cycle in progress.");
+    notify(COPY.notifications.shutdownBlocked);
     state.complianceScore -= 1;
     save();
   };
@@ -487,7 +484,7 @@ createRoomBtn.onclick = () => {
   const room = (roomIdInput.value || `room-${Math.random().toString(36).slice(2, 8)}`).trim();
   const code = (accessCodeInput.value || "").trim();
   const name = (displayNameInput.value || playerId).trim();
-  const roomLabel = (roomNameInput.value || `Room ${room.slice(0, 6)}`).trim();
+  const roomLabel = (roomNameInput.value || `Node ${room.slice(0, 6)}`).trim();
   const privateFlag = privateRoomInput.checked;
   const next = new URL(buildSessionUrl({ room, code, name, host: true }));
   next.searchParams.set("roomName", roomLabel);
@@ -498,7 +495,7 @@ createRoomBtn.onclick = () => {
 joinRoomBtn.onclick = () => {
   const room = (roomIdInput.value || "").trim();
   if (!room) {
-    notify("Enter a room ID to join.");
+    notify(COPY.lobby.joinError);
     return;
   }
   const code = (accessCodeInput.value || "").trim();
@@ -509,7 +506,7 @@ joinRoomBtn.onclick = () => {
 copyInviteBtn.onclick = async () => {
   const room = (roomIdInput.value || roomId || "").trim();
   if (!room) {
-    notify("Enter a room ID first.");
+    notify(COPY.lobby.copyError);
     return;
   }
   const code = (accessCodeInput.value || "").trim();
@@ -517,9 +514,9 @@ copyInviteBtn.onclick = async () => {
   const inviteUrl = buildSessionUrl({ room, code, name, host: false });
   try {
     await navigator.clipboard.writeText(inviteUrl);
-    notify("Invite link copied.");
+    notify(COPY.lobby.copied);
   } catch {
-    notify("Clipboard unavailable. Copy URL manually from address bar.");
+    notify(COPY.lobby.clipboardUnavailable);
   }
 };
 

@@ -1,3 +1,5 @@
+import { COPY, formatCopy } from "../ui/copy.js";
+
 function parseTime(value) {
   const [hours, minutes] = String(value || "").split(":").map(Number);
   if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
@@ -6,14 +8,14 @@ function parseTime(value) {
 }
 
 export function openSettings({ makeWindow, state, saveState, notify }) {
-  makeWindow("settings", "System Settings", (content) => {
-    content.innerHTML = `<div><strong>Realtime Clock Offset:</strong> <span id='offset'></span> minutes</div>
+  makeWindow("settings", COPY.apps.settings, (content) => {
+    content.innerHTML = `<div><strong>${COPY.settings.title}:</strong> <span id='offset'></span> minutes</div>
       <div style='margin-top:10px; display:flex; gap:6px; align-items:center'>
         <input id='manualTime' type='time' value='03:11' />
-        <button id='applyTime'>Apply</button>
+        <button id='applyTime'>${COPY.settings.apply}</button>
       </div>
-      <button id='sync311' style='margin-top:10px'>Sync clock to 03:11</button>
-      <div class='notice'>Warning: Time changes may affect archival integrity.</div>
+      <button id='sync311' style='margin-top:10px'>${COPY.settings.syncMaintenance}</button>
+      <div class='notice'>${COPY.settings.warning}</div>
       <div id='setMsg' class='notice'></div>`;
 
     const offset = content.querySelector("#offset");
@@ -25,12 +27,12 @@ export function openSettings({ makeWindow, state, saveState, notify }) {
       state.driftMinutes = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes) - now) / 60000);
       if (hours === 3 && minutes === 11) {
         state.unlocked.redactedLog = true;
-        msg.textContent = "Clock synchronized to maintenance window.";
+        msg.textContent = COPY.settings.maintenanceSuccess;
       } else {
-        msg.textContent = `Clock synchronized to ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}.`;
+        msg.textContent = formatCopy(COPY.settings.synced, { time: `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}` });
       }
       saveState();
-      notify?.("RTC offset updated.");
+      notify?.(COPY.settings.notify);
       update();
     };
 
@@ -43,7 +45,7 @@ export function openSettings({ makeWindow, state, saveState, notify }) {
     content.querySelector("#applyTime").onclick = () => {
       const parsed = parseTime(manual.value);
       if (!parsed) {
-        msg.textContent = "Invalid time.";
+        msg.textContent = COPY.settings.invalid;
         return;
       }
       applyClock(parsed.hours, parsed.minutes);
