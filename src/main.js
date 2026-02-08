@@ -15,6 +15,7 @@ import { openNotes } from "./apps/notes.js";
 import { openMedia } from "./apps/media.js";
 import { openSettings } from "./apps/settings.js";
 import { openHelp } from "./apps/help.js";
+import { openChat } from "./apps/chat.js";
 import { createPresentationController } from "./presentation.js";
 import { getOnboardingChecklistItems } from "./onboarding.js";
 import { COPY } from "./ui/copy.js";
@@ -400,7 +401,8 @@ const apps = [
   { name: COPY.apps.notes, icon: "📝", roles: ["operator", "observer"], open: () => openNotes(appContext) },
   { name: COPY.apps.media, icon: "▶", roles: ["operator"], open: () => openMedia(appContext) },
   { name: COPY.apps.settings, icon: "⚙", roles: ["operator"], open: () => openSettings(appContext) },
-  { name: COPY.apps.help, icon: "?", roles: ["operator", "observer"], open: () => openHelp(appContext) }
+  { name: COPY.apps.help, icon: "?", roles: ["operator", "observer"], open: () => openHelp(appContext) },
+  { name: COPY.apps.chat, icon: "💬", roles: ["operator", "observer"], open: () => openChat(appContext) }
 ];
 
 function openStartupNotification() {
