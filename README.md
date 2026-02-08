@@ -173,6 +173,10 @@ Reset options:
 
 ## Testing
 
+[![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
+
+Track CI runs and artifacts in [GitHub Actions workflow history](../../actions/workflows/ci.yml).
+
 Run the test suite:
 
 ```bash
