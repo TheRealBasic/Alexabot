@@ -3,9 +3,32 @@ const DEFAULT_SAMPLE_PATHS = {
   cinematicStinger: "assets/audio/cinematic-stinger.mp3"
 };
 
-export function createAudioEngine({ masterVolume = 0.65, samplePaths = DEFAULT_SAMPLE_PATHS } = {}) {
+// Centralized mix defaults for easy balancing/tuning.
+export const AUDIO_MIX_DEFAULTS = Object.freeze({
+  masterVolume: 0.62,
+  masterBusGain: 1,
+  sfxBusGain: 0.9,
+  ambienceBusGain: 0.32,
+  compressor: {
+    enabled: true,
+    threshold: -22,
+    knee: 18,
+    ratio: 2.4,
+    attack: 0.015,
+    release: 0.24
+  }
+});
+
+export function createAudioEngine({
+  mix = AUDIO_MIX_DEFAULTS,
+  samplePaths = DEFAULT_SAMPLE_PATHS
+} = {}) {
   let audioCtx;
-  let masterGain;
+  let outputGain;
+  let masterBus;
+  let sfxBus;
+  let ambienceBus;
+  let dynamicsCompressor;
   let noiseBuffer;
   const buffers = new Map();
 
@@ -15,9 +38,40 @@ export function createAudioEngine({ masterVolume = 0.65, samplePaths = DEFAULT_S
     if (!AudioContextCtor) return false;
     try {
       audioCtx = new AudioContextCtor();
-      masterGain = audioCtx.createGain();
-      masterGain.gain.value = Math.min(Math.max(masterVolume, 0), 1);
-      masterGain.connect(audioCtx.destination);
+
+      sfxBus = audioCtx.createGain();
+      sfxBus.gain.value = Math.max(0, Number(mix?.sfxBusGain) || 0);
+
+      ambienceBus = audioCtx.createGain();
+      ambienceBus.gain.value = Math.max(0, Number(mix?.ambienceBusGain) || 0);
+
+      masterBus = audioCtx.createGain();
+      masterBus.gain.value = Math.max(0, Number(mix?.masterBusGain) || 0);
+
+      outputGain = audioCtx.createGain();
+      outputGain.gain.value = Math.min(Math.max(Number(mix?.masterVolume) || 0, 0), 1);
+
+      sfxBus.connect(masterBus);
+      ambienceBus.connect(masterBus);
+
+      const compressorCfg = mix?.compressor;
+      if (compressorCfg?.enabled && typeof audioCtx.createDynamicsCompressor === "function") {
+        dynamicsCompressor = audioCtx.createDynamicsCompressor();
+        dynamicsCompressor.threshold.value = Number(compressorCfg.threshold) || -22;
+        dynamicsCompressor.knee.value = Number(compressorCfg.knee) || 18;
+        dynamicsCompressor.ratio.value = Number(compressorCfg.ratio) || 2.4;
+        dynamicsCompressor.attack.value = Number(compressorCfg.attack) || 0.015;
+        dynamicsCompressor.release.value = Number(compressorCfg.release) || 0.24;
+      }
+
+      if (dynamicsCompressor) {
+        masterBus.connect(dynamicsCompressor);
+        dynamicsCompressor.connect(outputGain);
+      } else {
+        masterBus.connect(outputGain);
+      }
+
+      outputGain.connect(audioCtx.destination);
       return true;
     } catch {
       return false;
@@ -34,14 +88,14 @@ export function createAudioEngine({ masterVolume = 0.65, samplePaths = DEFAULT_S
     if (!ensureAudioContext()) return null;
     const submix = audioCtx.createGain();
     submix.gain.value = Math.max(0, Number(gain) || 0);
-    submix.connect(masterGain);
+    submix.connect(masterBus);
     return submix;
   }
 
   function setMasterVolume(value = 1) {
     if (!ensureAudioContext()) return;
     const safeValue = Math.min(Math.max(Number(value) || 0, 0), 1);
-    masterGain.gain.setTargetAtTime(safeValue, audioCtx.currentTime, 0.01);
+    outputGain.gain.setTargetAtTime(safeValue, audioCtx.currentTime, 0.01);
   }
 
   function getNoiseBuffer() {
@@ -82,7 +136,7 @@ export function createAudioEngine({ masterVolume = 0.65, samplePaths = DEFAULT_S
     bodyGain.gain.setValueAtTime(0.0001, time);
     bodyGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, gain), time + 0.009);
     bodyGain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
-    bodyOsc.connect(bodyGain).connect(masterGain);
+    bodyOsc.connect(bodyGain).connect(sfxBus);
     bodyOsc.start(time);
     bodyOsc.stop(time + duration + 0.02);
 
@@ -96,7 +150,7 @@ export function createAudioEngine({ masterVolume = 0.65, samplePaths = DEFAULT_S
     noiseGain.gain.setValueAtTime(0.0001, time);
     noiseGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, gain * noiseMix), time + 0.004);
     noiseGain.gain.exponentialRampToValueAtTime(0.0001, time + duration * 0.55);
-    noiseSource.connect(noiseFilter).connect(noiseGain).connect(masterGain);
+    noiseSource.connect(noiseFilter).connect(noiseGain).connect(sfxBus);
     noiseSource.start(time);
     noiseSource.stop(time + duration + 0.02);
 
@@ -107,7 +161,7 @@ export function createAudioEngine({ masterVolume = 0.65, samplePaths = DEFAULT_S
     const transientGain = audioCtx.createGain();
     transientGain.gain.setValueAtTime(Math.max(0.0001, gain * 0.42), time);
     transientGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.028);
-    transientOsc.connect(transientGain).connect(masterGain);
+    transientOsc.connect(transientGain).connect(sfxBus);
     transientOsc.start(time);
     transientOsc.stop(time + 0.04);
   }
@@ -121,7 +175,7 @@ export function createAudioEngine({ masterVolume = 0.65, samplePaths = DEFAULT_S
     source.playbackRate.value = playbackRate;
     const amp = audioCtx.createGain();
     amp.gain.setValueAtTime(Math.max(0, gain), t);
-    source.connect(amp).connect(masterGain);
+    source.connect(amp).connect(sfxBus);
     source.start(t);
     return true;
   }
@@ -172,6 +226,8 @@ export function createAudioEngine({ masterVolume = 0.65, samplePaths = DEFAULT_S
     playCinematicStinger,
     setMasterVolume,
     createSubmix,
+    getSfxBus: () => (ensureAudioContext() ? sfxBus : null),
+    getAmbienceBus: () => (ensureAudioContext() ? ambienceBus : null),
     ensureRunning: resumeIfNeeded,
     getContext: () => (ensureAudioContext() ? audioCtx : null)
   };
