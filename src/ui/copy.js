@@ -1,9 +1,9 @@
 export const COPY = {
   shell: {
     chapterLabels: {
-      1: "PHASE I // BASELINE",
-      2: "PHASE II // RECOVERY",
-      3: "PHASE III // DISCLOSURE"
+      1: "ACT I // ORIENTATION",
+      2: "ACT II // RETRIEVAL",
+      3: "ACT III // ACCOUNTING"
     },
     onboarding: {
       title: "Operator Briefing",
@@ -38,9 +38,9 @@ export const COPY = {
   },
   notifications: {
     startup: [
-      "Phase I active: verify archive routing integrity.",
-      "Phase II active: recover and decode withheld records.",
-      "Phase III active: complete disclosure and handoff."
+      "Act I active: verify archive routing integrity.",
+      "Act II active: recover and decode withheld records.",
+      "Act III active: complete accounting and handoff."
     ],
     shutdownBlocked: "Shutdown unavailable: archival cycle is locked.",
     lifecycleBlocked: "Lifecycle controls unavailable while attached to a paired node.",
@@ -120,7 +120,7 @@ export const COPY = {
     empty: "[no readable payload]"
   },
   help: {
-    title: "Operations Knowledge Base",
+    title: "Operations Manual",
     intro: "Some references are unavailable due to archive degradation.",
     topics: [
       "Command shell procedures — see <code>/system/help/shell_help.txt</code>",
