@@ -87,7 +87,10 @@ export const COPY = {
     maintenanceSuccess: "Clock synchronized to maintenance window marker.",
     synced: "Clock synchronized to {time}.",
     invalid: "ERR-TIME-400: invalid time payload.",
-    notify: "RTC offset updated."
+    notify: "RTC offset updated.",
+    animationTitle: "Accessibility",
+    animationToggle: "Disable chat animation effects (instant assistant text)",
+    animationHelp: "Applies to staged text reveal and glitch flicker in The Wakeful Thread."
   }
 };
 
