@@ -1,9 +1,8 @@
 import { createAudioEngine } from "./audio/engine.js";
 
 export function createPresentationController({ state, desktopRoot, taskbar, overlay }) {
-  let audioCtx;
-  let humNode;
-  let humLfo;
+  let ambientBus;
+  let ambientNodes;
   let locked = false;
   let lastUiClickAt = 0;
   const audio = createAudioEngine();
@@ -19,41 +18,98 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
     trustCritical: false
   });
 
-  function ensureAudioContext() {
-    if (audioCtx) return true;
-    try {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      return true;
-    } catch {
-      return false;
+  function ensureAmbientPatch() {
+    if (ambientNodes || !audio.ensureRunning()) return;
+    const ctx = audio.getContext();
+    if (!ctx) return;
+
+    ambientBus = ambientBus || audio.createSubmix({ gain: 0.34 });
+    if (!ambientBus) return;
+
+    const hpFilter = ctx.createBiquadFilter();
+    hpFilter.type = "highpass";
+    hpFilter.frequency.value = 40;
+    hpFilter.Q.value = 0.7;
+
+    const lpFilter = ctx.createBiquadFilter();
+    lpFilter.type = "lowpass";
+    lpFilter.frequency.value = 3000;
+    lpFilter.Q.value = 0.8;
+
+    const widthPanner = typeof ctx.createStereoPanner === "function" ? ctx.createStereoPanner() : null;
+    const widthLfo = widthPanner ? ctx.createOscillator() : null;
+    const widthDepth = widthPanner ? ctx.createGain() : null;
+
+    if (widthPanner && widthLfo && widthDepth) {
+      widthLfo.type = "sine";
+      widthLfo.frequency.value = 0.045;
+      widthDepth.gain.value = 0.16;
+      widthLfo.connect(widthDepth).connect(widthPanner.pan);
+      widthLfo.start();
+      lpFilter.connect(widthPanner).connect(ambientBus);
+    } else {
+      lpFilter.connect(ambientBus);
     }
-  }
 
-  function ensureHum() {
-    if (humNode || !ensureAudioContext()) return;
-    humNode = audioCtx.createOscillator();
-    const humGain = audioCtx.createGain();
-    humLfo = audioCtx.createOscillator();
-    const lfoGain = audioCtx.createGain();
+    hpFilter.connect(lpFilter);
 
-    humNode.type = "sawtooth";
-    humNode.frequency.value = 58;
-    humGain.gain.value = 0.0035;
+    const lowOsc = ctx.createOscillator();
+    lowOsc.type = "triangle";
+    lowOsc.frequency.value = 54;
+    const lowOscGain = ctx.createGain();
+    lowOscGain.gain.value = 0.0022;
 
-    humLfo.type = "sine";
-    humLfo.frequency.value = 0.19;
-    lfoGain.gain.value = 5;
+    const lowSine = ctx.createOscillator();
+    lowSine.type = "sine";
+    lowSine.frequency.value = 42;
+    const lowSineGain = ctx.createGain();
+    lowSineGain.gain.value = 0.0016;
 
-    humLfo.connect(lfoGain).connect(humNode.frequency);
-    humNode.connect(humGain).connect(audioCtx.destination);
-    humNode.start();
-    humLfo.start();
+    const midNoise = ctx.createBufferSource();
+    const midNoiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 1.5), ctx.sampleRate);
+    const noiseData = midNoiseBuffer.getChannelData(0);
+    for (let i = 0; i < noiseData.length; i++) noiseData[i] = Math.random() * 2 - 1;
+    midNoise.buffer = midNoiseBuffer;
+    midNoise.loop = true;
+
+    const midBand = ctx.createBiquadFilter();
+    midBand.type = "bandpass";
+    midBand.frequency.value = 460;
+    midBand.Q.value = 0.55;
+    const midGain = ctx.createGain();
+    midGain.gain.value = 0.0018;
+
+    const airNoise = ctx.createBufferSource();
+    airNoise.buffer = midNoiseBuffer;
+    airNoise.loop = true;
+    const airBand = ctx.createBiquadFilter();
+    airBand.type = "highpass";
+    airBand.frequency.value = 3600;
+    airBand.Q.value = 0.4;
+    const airGain = ctx.createGain();
+    airGain.gain.value = 0.00035;
+
+    lowOsc.connect(lowOscGain).connect(hpFilter);
+    lowSine.connect(lowSineGain).connect(hpFilter);
+    midNoise.connect(midBand).connect(midGain).connect(hpFilter);
+    airNoise.connect(airBand).connect(airGain).connect(hpFilter);
+
+    lowOsc.start();
+    lowSine.start();
+    midNoise.start();
+    airNoise.start();
+
+    ambientNodes = {
+      lowOsc,
+      lowSine,
+      midNoise,
+      airNoise,
+      widthLfo
+    };
   }
 
   function startAmbient() {
-    if (!ensureAudioContext()) return;
-    if (audioCtx.state === "suspended") audioCtx.resume();
-    ensureHum();
+    ensureAmbientPatch();
   }
 
   function uiClick() {

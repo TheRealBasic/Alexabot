@@ -30,6 +30,14 @@ export function createAudioEngine({ masterVolume = 0.65, samplePaths = DEFAULT_S
     return true;
   }
 
+  function createSubmix({ gain = 1 } = {}) {
+    if (!ensureAudioContext()) return null;
+    const submix = audioCtx.createGain();
+    submix.gain.value = Math.max(0, Number(gain) || 0);
+    submix.connect(masterGain);
+    return submix;
+  }
+
   function setMasterVolume(value = 1) {
     if (!ensureAudioContext()) return;
     const safeValue = Math.min(Math.max(Number(value) || 0, 0), 1);
@@ -162,6 +170,9 @@ export function createAudioEngine({ masterVolume = 0.65, samplePaths = DEFAULT_S
   return {
     playUiClick,
     playCinematicStinger,
-    setMasterVolume
+    setMasterVolume,
+    createSubmix,
+    ensureRunning: resumeIfNeeded,
+    getContext: () => (ensureAudioContext() ? audioCtx : null)
   };
 }
