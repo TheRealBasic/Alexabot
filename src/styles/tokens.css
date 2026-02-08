@@ -1,0 +1,47 @@
+:root {
+  --color-bg: #071019;
+  --color-bg-black: #000;
+  --color-panel: #0e1d2b;
+  --color-panel-strong: #091522;
+  --color-line: #21405f;
+  --color-text: #c7d8eb;
+  --color-text-muted: #7b90a9;
+  --color-warning: #d7ac66;
+  --color-danger: #d46969;
+  --color-accent: #6ba2d9;
+  --color-taskbar: rgba(3, 8, 14, 0.9);
+  --color-overlay: rgba(2, 7, 12, 0.85);
+
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 10px;
+  --space-5: 12px;
+  --space-6: 14px;
+  --space-7: 16px;
+  --space-8: 24px;
+
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 14px;
+  --font-size-xl: 16px;
+  --font-size-display: 38px;
+
+  --radius-none: 0;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+
+  --elevation-1: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --elevation-2: 0 0 14px rgba(120, 170, 220, 0.6);
+
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 320ms;
+
+  --font-ui: "Tahoma", "Segoe UI", sans-serif;
+  --font-mono: "Courier New", monospace;
+
+  --focus-ring: 0 0 0 2px rgba(107, 162, 217, 0.5);
+}
