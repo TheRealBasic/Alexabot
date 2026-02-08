@@ -15,11 +15,18 @@ test('rehydrates recovered files', () => {
   assert.ok(fs['/home/operator/mail'].includes('draft_9.eml'));
 });
 
-test('directory entries are sorted', () => {
+test('directory entries prioritize narrative-critical files then sort within each tier', () => {
   const state = makeState();
   const entries = getDirectoryEntries('/home/operator', state);
-  const sorted = [...entries].sort((a, b) => a.localeCompare(b));
-  assert.deepEqual(entries, sorted);
+  const notesIdx = entries.indexOf('notes.txt');
+  const desktopIdx = entries.indexOf('desktop');
+  assert.ok(notesIdx >= 0);
+  assert.ok(desktopIdx >= 0);
+  assert.ok(notesIdx < desktopIdx);
+
+  const rest = entries.filter((entry) => entry !== 'notes.txt');
+  const sortedRest = [...rest].sort((a, b) => a.localeCompare(b));
+  assert.deepEqual(rest, sortedRest);
 });
 
 

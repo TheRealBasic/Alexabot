@@ -160,7 +160,47 @@ function formatServiceProcEntry(service = {}) {
   ].join("\n");
 }
 
+const NARRATIVE_PRIORITY = {
+  critical: 0,
+  supportive: 1,
+  flavor: 2
+};
+
+const narrativeAudit = {
+  "/home/operator/notes.txt": { classification: "supportive", chapter: 1 },
+  "/home/operator/docs/continuity_overview.txt": { classification: "critical", chapter: 1 },
+  "/home/operator/docs/meeting_minutes_2003-04-17.txt": { classification: "supportive", chapter: 1 },
+  "/home/operator/docs/statement_draft.txt": { classification: "critical", chapter: 1 },
+  "/home/operator/docs/act2_transition.txt": { classification: "critical", chapter: 2 },
+  "/home/operator/docs/act3_transition.txt": { classification: "critical", chapter: 3 },
+  "/home/operator/docs/ending_trust_high.txt": { classification: "critical", chapter: 3 },
+  "/home/operator/docs/ending_trust_low.txt": { classification: "critical", chapter: 3 },
+  "/home/operator/docs/postmortem.txt": { classification: "critical", chapter: 2 },
+  "/home/operator/docs/stability_note.txt": { classification: "supportive", chapter: 2 },
+  "/home/operator/mail/inbox_03.mbox": { classification: "critical", chapter: 1 },
+  "/home/operator/mail/unsent_7.eml": { classification: "supportive", chapter: 1 },
+  "/home/operator/mail/draft_9.eml": { classification: "supportive", chapter: 2 },
+  "/home/operator/mail/observer_followup.eml": { classification: "supportive", chapter: 2 },
+  "/home/operator/drafts/scratch.txt": { classification: "supportive", chapter: 1 },
+  "/home/operator/drafts/do_not_archive.txt": { classification: "critical", chapter: 1 },
+  "/home/operator/desktop/family_photo.jpg": { classification: "flavor", chapter: 1 },
+  "/home/guest/note.txt": { classification: "flavor", chapter: 1 },
+  "/system/boot.cfg": { classification: "supportive", chapter: 1 },
+  "/system/users.db": { classification: "supportive", chapter: 1 },
+  "/logs/session.log": { classification: "supportive", chapter: 1 },
+  "/logs/incident.log": { classification: "critical", chapter: 1 },
+  "/logs/audit_redacted.log": { classification: "critical", chapter: 2 },
+  "/logs/final_directive.log": { classification: "critical", chapter: 3 },
+  "/media/cam2_20030418.dat": { classification: "critical", chapter: 2 },
+  "/media/hallway_capture.avi": { classification: "supportive", chapter: 1 }
+};
+
 const chapterMilestones = {
+  ...Object.fromEntries(
+    Object.entries(narrativeAudit)
+      .filter(([, info]) => info.classification === "critical")
+      .map(([path, info]) => [path, info.chapter || 1])
+  ),
   "/home/operator/docs/act2_transition.txt": 2,
   "/home/operator/docs/act3_transition.txt": 3,
   "/logs/final_directive.log": 3
@@ -217,8 +257,12 @@ export function rehydrateContentFromState(state) {
 }
 
 export function isContentVisible(path, state) {
-  const requiredChapter = chapterMilestones[path] || 1;
+  const requiredChapter = chapterMilestones[path] || narrativeAudit[path]?.chapter || 1;
   return state.chapter >= requiredChapter;
+}
+
+export function getNarrativeAudit(path) {
+  return narrativeAudit[path] || null;
 }
 
 export function getDirectoryEntries(path, state) {
@@ -229,7 +273,14 @@ export function getDirectoryEntries(path, state) {
       return isContentVisible(fullPath, state);
     })
     .slice()
-    .sort((a, b) => a.localeCompare(b));
+    .sort((a, b) => {
+      const aPath = path === "/" ? `/${a}` : `${path}/${a}`;
+      const bPath = path === "/" ? `/${b}` : `${path}/${b}`;
+      const aPriority = NARRATIVE_PRIORITY[narrativeAudit[aPath]?.classification] ?? Number.MAX_SAFE_INTEGER;
+      const bPriority = NARRATIVE_PRIORITY[narrativeAudit[bPath]?.classification] ?? Number.MAX_SAFE_INTEGER;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return a.localeCompare(b);
+    });
 }
 
 export function getDynamicFile(path, state) {
