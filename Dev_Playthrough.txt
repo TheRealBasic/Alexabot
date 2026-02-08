@@ -1,0 +1,180 @@
+EIDOLON OS Developer Playthrough (Step-by-Step)
+================================================
+
+Purpose
+-------
+This walkthrough is intended for development/testing. It gives a reliable path through the full narrative progression, including optional co-op beats.
+
+Assumptions
+-----------
+- You launched the app at http://localhost:4173
+- You are starting from a fresh state (terminal command: reset-session, then reload if needed)
+- This file covers:
+  1) Solo completion path
+  2) Co-op-specific objective path
+
+
+PART A: SOLO FULL RUN (Operator only)
+=====================================
+
+Goal Summary
+------------
+- Complete chapter 1 objectives:
+  - unlock_archive
+  - set_time_0311
+- Complete chapter 2 objectives:
+  - recover_manifest
+  - decode_cam2
+  - access_redacted_audit
+- Reach chapter 3 and view end-state logs/docs.
+
+Step 1 — Open Terminal
+----------------------
+- From desktop, open Terminal.
+- (Optional sanity check) run:
+  help
+
+Step 2 — Read required context for archive unlock
+-------------------------------------------------
+IMPORTANT: "unlock archive" only succeeds after continuity overview has been viewed.
+
+Run:
+  cat /home/operator/docs/continuity_overview.txt
+
+Then run:
+  unlock archive
+
+Expected output includes:
+  archive channel exposed
+
+Step 3 — Enter maintenance window time
+--------------------------------------
+Run:
+  set-time 03:11
+
+Expected output includes:
+  maintenance window active
+  clock adjusted
+
+This also unlocks access route for redacted audit content and sets up recovery window timing.
+
+Step 4 — Recover deleted manifest files
+---------------------------------------
+Immediately run:
+  recover --manifest
+
+Expected output includes:
+  2 files restored from deleted manifest.
+
+If it fails with "denied outside maintenance window", run set-time 03:11 again and retry immediately.
+
+Step 5 — Decode cam2 payload
+----------------------------
+Run:
+  strings /media/cam2_20030418.dat
+
+Expected output includes extracted decoded text.
+
+Step 6 — Access redacted audit log
+----------------------------------
+Run:
+  cat /logs/audit_redacted.log
+
+Expected: redacted audit content becomes visible once clock objective was done.
+
+At this point, chapter 2 required objectives should be complete.
+
+Step 7 — Confirm chapter 3 state content
+----------------------------------------
+Run:
+  cat /logs/final_directive.log
+
+Then inspect docs directory for ending file visibility:
+  ls /home/operator/docs
+
+You should see one of:
+  ending_trust_high.txt
+  ending_trust_low.txt
+
+In solo runs, trust often stays neutral/high-ish unless you create many conflicting actions.
+
+Step 8 — Read recovered files (post-recovery verification)
+----------------------------------------------------------
+Run:
+  cat /home/operator/docs/postmortem.txt
+  cat /home/operator/mail/draft_9.eml
+
+These are restored via recover --manifest and confirm act-2 recovery effects.
+
+Step 9 — Optional narrative exploration sweep
+---------------------------------------------
+Suggested reads for complete story context:
+  cat /home/operator/docs/meeting_minutes_2003-04-17.txt
+  cat /home/operator/docs/statement_draft.txt
+  cat /logs/incident.log
+  cat /logs/kernel.log
+  cat /logs/session.log
+  cat /logs/final_directive.log
+  cat /media/hallway_capture.avi
+  cat /media/lullaby.wav
+
+
+PART B: CO-OP OBJECTIVE PATH (Operator + Observer)
+===================================================
+
+Co-op Setup
+-----------
+- Start both servers:
+  - npm run dev
+  - npm run dev:multiplayer
+- Use two clients/browsers.
+- Join the same room from the lobby.
+- Ensure one player is operator and one is observer.
+
+Observer/Operator Relay Sequence
+--------------------------------
+This pair is not strictly required for chapter promotion, but is a core co-op mechanic.
+
+1) Observer terminal:
+   ping operator
+
+   Expected:
+   relay code emitted: ####
+
+2) Operator terminal (within ~30 seconds):
+   relay exec ####
+
+   Expected:
+   relay handshake accepted
+
+Observer-specific objective
+---------------------------
+Observer should run:
+  cat /logs/incident.log
+
+This helps satisfy observer anomaly-trace objective behavior.
+
+Shared chapter progression steps
+--------------------------------
+Operator should still execute the same main progression commands as solo path:
+  cat /home/operator/docs/continuity_overview.txt
+  unlock archive
+  set-time 03:11
+  recover --manifest
+  strings /media/cam2_20030418.dat
+  cat /logs/audit_redacted.log
+
+Trust/ending behavior notes
+---------------------------
+- Successful coordination generally increases trust trajectory.
+- Repeated conflicts, invalid relays, or contradictory command timing can reduce trust.
+- Final directive/ending text in chapter 3 reflects this trust path.
+
+
+RESET + RE-RUN
+==============
+
+To restart the scenario quickly from terminal:
+  reset-session
+
+Then reload and repeat this playthrough.
