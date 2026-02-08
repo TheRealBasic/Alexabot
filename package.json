@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "python3 -m http.server 4173",
     "test": "node --test",
-    "lint": "node --test",
+    "lint": "eslint src/ server/ tests/",
     "predev:multiplayer": "npm install --no-audit --no-fund",
-    "dev:multiplayer": "node server/multiplayer-server.js"
+    "dev:multiplayer": "node server/multiplayer-server.js",
+    "lint:fix": "eslint src/ server/ tests/ --fix"
   },
   "dependencies": {
     "ws": "^8.18.0"

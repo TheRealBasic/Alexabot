@@ -177,7 +177,15 @@ Reset options:
 
 Track CI runs and artifacts in [GitHub Actions workflow history](../../actions/workflows/ci.yml).
 
-Run the test suite:
+Run lint checks before committing code changes:
+
+```bash
+npm run lint
+```
+
+Use `npm run lint:fix` when you want ESLint to auto-fix safe issues.
+
+Run the test suite when validating behavior and regression risk:
 
 ```bash
 npm test
