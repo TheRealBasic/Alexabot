@@ -226,7 +226,7 @@ const multiplayer = sessionMode === "coop"
         lobbyList.innerHTML = `<div class="notice">${COPY.lobby.noNodes}</div>`;
         return;
       }
-      lobbyList.innerHTML = rooms.map((entry) => `<button class="start-item" data-room="${entry.roomId}" style="margin-bottom:4px;">${entry.displayName} · ${entry.connectedCount}/${entry.seats}${entry.hasAccessCode ? " · keyed" : ""}</button>`).join("");
+      lobbyList.innerHTML = rooms.map((entry) => `<button class="start-item lobby-item" data-room="${entry.roomId}">${entry.displayName} · ${entry.connectedCount}/${entry.seats}${entry.hasAccessCode ? " · keyed" : ""}</button>`).join("");
       for (const button of lobbyList.querySelectorAll("button[data-room]")) {
         button.onclick = () => {
           const selectedRoom = button.getAttribute("data-room");
@@ -417,6 +417,8 @@ function initDesktop() {
   renderOnboardingPanel = mountOnboardingPanel();
 
   startBtn.textContent = COPY.apps.menuLabel;
+  desktopIcons.textContent = "";
+  startMenuItems.textContent = "";
 
   for (const app of apps) {
     if (Array.isArray(app.roles) && !app.roles.includes(state.activeRole)) continue;
@@ -425,8 +427,10 @@ function initDesktop() {
     icon.type = "button";
     icon.setAttribute("aria-label", `Open ${app.name}`);
     icon.innerHTML = `<div class="glyph" aria-hidden="true">${app.icon}</div><div class="system-label">${app.name}</div>`;
-    icon.ondblclick = () => app.open();
-    icon.onclick = () => app.open();
+    icon.ondblclick = (e) => {
+      e.preventDefault();
+      app.open();
+    };
     icon.onkeydown = (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
@@ -482,20 +486,22 @@ function initDesktop() {
   });
 
   desktopRoot.onclick = (e) => {
-    if (!startMenu.contains(e.target) && e.target !== startBtn) startMenu.style.display = "none";
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+    if (!target.closest("#startMenu") && !target.closest("#startBtn")) startMenu.style.display = "none";
   };
 
   setInterval(() => {
     const now = new Date(Date.now() + state.driftMinutes * 60_000);
     trayClock.textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    setTrayHealth(trayClock, syncState);
+    setTrayHealth(trayClock, trayClock.textContent);
     trayState.textContent = getTrayWarningText(state);
     setTrayHealth(trayState, trayState.textContent);
 
     const glitch = getAppGlitchStyle(state);
     desktopRoot.style.filter = glitch.filter;
     desktopRoot.style.transform = glitch.transform;
-  }, 500);
+  }, 1000);
 }
 
 createRoomBtn.onclick = () => {

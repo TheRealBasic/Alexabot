@@ -3,6 +3,8 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
   let humNode;
   let humLfo;
   let locked = false;
+  let lastUiClickAt = 0;
+  const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
   const cinematicSeen = state.cinematicSeen || (state.cinematicSeen = {
     archiveUnlock: false,
@@ -25,13 +27,14 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
 
   function pulseTone({ freq = 320, duration = 0.12, type = "square", gain = 0.03 } = {}) {
     if (!ensureAudioContext()) return;
+    const safeGain = Math.min(Math.max(gain, 0.0001), 0.018);
     const t = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     const amp = audioCtx.createGain();
     osc.type = type;
     osc.frequency.setValueAtTime(freq, t);
     amp.gain.setValueAtTime(0.0001, t);
-    amp.gain.exponentialRampToValueAtTime(gain, t + 0.01);
+    amp.gain.exponentialRampToValueAtTime(safeGain, t + 0.01);
     amp.gain.exponentialRampToValueAtTime(0.0001, t + duration);
     osc.connect(amp).connect(audioCtx.destination);
     osc.start(t);
@@ -47,7 +50,7 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
 
     humNode.type = "sawtooth";
     humNode.frequency.value = 58;
-    humGain.gain.value = 0.008;
+    humGain.gain.value = 0.0035;
 
     humLfo.type = "sine";
     humLfo.frequency.value = 0.19;
@@ -66,8 +69,11 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
   }
 
   function uiClick() {
+    const now = performance.now();
+    if (now - lastUiClickAt < 75) return;
+    lastUiClickAt = now;
     startAmbient();
-    pulseTone({ freq: 860, duration: 0.03, type: "triangle", gain: 0.012 });
+    pulseTone({ freq: 680, duration: 0.02, type: "triangle", gain: 0.0055 });
   }
 
   function addTimedClass(el, className, ms = 700) {
@@ -90,16 +96,20 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
 
   function cinematicBeat({ text, lockMs, flickerMs = 900, scanlineMs = 1600, warningMs = 1300, stinger = 230 }) {
     startAmbient();
-    pulseTone({ freq: stinger, duration: 0.16, type: "sawtooth", gain: 0.05 });
-    setTimeout(() => pulseTone({ freq: stinger * 1.7, duration: 0.2, type: "triangle", gain: 0.035 }), 140);
-    addTimedClass(desktopRoot, "fx-flicker", flickerMs);
-    addTimedClass(desktopRoot, "fx-scanline-shift", scanlineMs);
-    addTimedClass(taskbar, "fx-warning-pulse", warningMs);
+    pulseTone({ freq: stinger, duration: 0.14, type: "sawtooth", gain: 0.013 });
+    setTimeout(() => pulseTone({ freq: stinger * 1.55, duration: 0.15, type: "triangle", gain: 0.01 }), 120);
+    if (!prefersReducedMotion) {
+      addTimedClass(desktopRoot, "fx-flicker", flickerMs);
+      addTimedClass(desktopRoot, "fx-scanline-shift", scanlineMs);
+      addTimedClass(taskbar, "fx-warning-pulse", warningMs);
+    }
     lockInput(lockMs, text);
   }
 
   document.addEventListener("click", (e) => {
-    if (e.target.closest("button, .start-item, .icon, .task, .file-item, .tree-item")) uiClick();
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest("button, .start-item, .icon, .task, .file-item, .tree-item") && !target.closest("button:disabled")) uiClick();
   });
 
   document.addEventListener("keydown", (e) => {
