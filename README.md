@@ -1,47 +1,220 @@
 # EIDOLON OS // Recovery Image
 
-A browser-based narrative desktop simulation with progression across three acts.
+A browser-based narrative desktop simulation where you investigate a failing continuity system through files, terminal commands, and (optionally) co-op role play.
 
-## Run
+## Table of Contents
 
-```bash
-npm run dev
+- [Overview](#overview)
+- [Features](#features)
+- [Project Structure](#project-structure)
+- [Requirements](#requirements)
+- [Quick Start (Solo)](#quick-start-solo)
+- [Quick Start (Co-op / Multiplayer)](#quick-start-co-op--multiplayer)
+- [Gameplay Basics](#gameplay-basics)
+- [Terminal Commands](#terminal-commands)
+- [Progression Guide (High Level)](#progression-guide-high-level)
+- [Saving and Resetting](#saving-and-resetting)
+- [Testing](#testing)
+- [Style & UI Consistency Notes](#style--ui-consistency-notes)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+
+## Overview
+
+EIDOLON OS presents a retro desktop UI with in-world applications (Explorer, Terminal, Notes, Media, Help, Settings) and a branching progression system.
+
+You move through 3 chapters by uncovering evidence, completing objectives, and (in co-op) coordinating between **operator** and **observer** roles.
+
+## Features
+
+- Story progression across 3 chapters.
+- In-world file system with hidden/revealed content.
+- Terminal-driven puzzle and command interactions.
+- Role-aware command restrictions (observer vs operator in co-op).
+- Trust/conflict tracking in co-op that influences end-state flavor.
+- Local save state (solo) and persistent room snapshots (multiplayer server).
+
+## Project Structure
+
+```text
+.
+├── index.html
+├── src/
+│   ├── apps/               # Desktop app windows (terminal, explorer, notes, ...)
+│   ├── progression/        # Action reducer + behavior reactions
+│   ├── styles/             # tokens/layout/components/effects CSS
+│   ├── content.js          # In-world filesystem and dynamic file visibility
+│   ├── state.js            # Save schema + chapter/objective state helpers
+│   ├── main.js             # App bootstrap + desktop orchestration + co-op hooks
+│   └── ...
+├── server/
+│   ├── multiplayer-server.js
+│   └── room-store.js
+└── tests/
 ```
 
-Then open `http://localhost:4173`.
+## Requirements
 
-## Controls
+- Node.js 18+ recommended.
+- npm.
+- Python 3 (used by the current `npm run dev` script, which serves static files).
 
-- Double-click/click desktop icons or Start menu entries.
-- Terminal commands: `help`, `ls`, `cd`, `cat`, `clear`, `pwd`, `unlock archive`, `set-time HH:MM`, `recover --manifest`, `strings <file>`, `whoami`, `history`, `date`, `reset-session`.
+## Quick Start (Solo)
 
-## Save Data
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Start the app:
+   ```bash
+   npm run dev
+   ```
+3. Open:
+   ```text
+   http://localhost:4173
+   ```
 
-Progress is persisted to `localStorage` under `eidolon_state_v1`.
-You can reset from **Start → Reset Session**.
+## Quick Start (Co-op / Multiplayer)
 
-## UI Style Guide (Compact)
+You need two processes:
 
-Use these shared styles when building or updating `src/apps/*.js` content so the desktop stays consistent.
+1. Static web app server:
+   ```bash
+   npm run dev
+   ```
+2. WebSocket multiplayer server:
+   ```bash
+   npm run dev:multiplayer
+   ```
+
+Then open the app in two clients/browsers and join/create the same room from the in-game lobby.
+
+### Multiplayer server defaults
+
+- WebSocket URL: `ws://localhost:8787`
+- Default port comes from `MULTIPLAYER_PORT` (fallback `8787`).
+- Optional JWT join validation can be enabled by setting `MULTIPLAYER_JWT_SECRET`.
+
+### Multiplayer room persistence
+
+By default, room snapshots are saved under:
+
+- `server/.room-store`
+
+Important env vars:
+
+- `ROOM_STORE_DIR`
+- `ROOM_HISTORY_LIMIT`
+- `ROOM_TTL_MS`
+- `ROOM_ARCHIVE_EXPIRED`
+- `PRELOAD_ROOMS_ON_START`
+
+## Gameplay Basics
+
+- Use desktop icons or Start menu entries to open apps.
+- The **Terminal** is central for progression.
+- The **Explorer** lets you read story files and logs.
+- The **Objectives panel** tracks visible goals based on role/chapter.
+- Chapter progression is state-driven; key objectives unlock subsequent acts.
+
+## Terminal Commands
+
+Core commands:
+
+- `help`
+- `ls`
+- `cd`
+- `cat`
+- `clear`
+- `pwd`
+- `whoami`
+- `history`
+- `date`
+- `reset-session`
+
+Progression-focused commands:
+
+- `unlock archive`
+- `set-time HH:MM`
+- `recover --manifest`
+- `strings <file>`
+
+Observer/co-op support commands:
+
+- `anomaly-hint`
+- `ping operator`
+- `relay exec <code>`
+
+Notes:
+
+- In co-op, some commands are restricted to the **operator** role.
+- `recover --manifest` is only allowed during the in-game maintenance window.
+
+## Progression Guide (High Level)
+
+- **Chapter 1** centers on archive access and clock alignment.
+- **Chapter 2** centers on recovery/decoding and audit evidence.
+- **Chapter 3** resolves based on trust/conflict trajectory (most visible in co-op).
+
+For a full step-by-step practical walkthrough, see:
+
+- `Dev_Playthrough.txt`
+
+## Saving and Resetting
+
+Solo session progress is stored in browser `localStorage` under:
+
+- `eidolon_state_v1`
+
+Reset options:
+
+- Use terminal: `reset-session`
+- Or clear storage from browser devtools.
+
+## Testing
+
+Run the test suite:
+
+```bash
+npm test
+```
+
+The repository uses Node's built-in test runner (`node --test`).
+
+## Style & UI Consistency Notes
+
+Use these shared styles when building/updating `src/apps/*.js` content to keep UI consistent.
 
 ### Design tokens (`src/styles/tokens.css`)
 
-- **Spacing scale**: `--space-1` through `--space-8` for margins, padding, and gaps.
-- **Typography**: `--font-size-xs|sm|md|lg|xl|display` and `--font-ui` / `--font-mono`.
-- **Radii**: `--radius-none|sm|md`.
-- **Elevation**: `--elevation-1` (panel/window shadow), `--elevation-2` (glow text-shadow).
-- **Motion**: `--duration-fast|base|slow` for transitions/animations.
-- **Color semantics**: prefer `--color-*` values (`--color-text`, `--color-warning`, `--color-danger`, etc.) over raw hex values.
+- Spacing: `--space-1` through `--space-8`
+- Typography: `--font-size-xs|sm|md|lg|xl|display`, `--font-ui`, `--font-mono`
+- Radii: `--radius-none|sm|md`
+- Elevation: `--elevation-1`, `--elevation-2`
+- Motion: `--duration-fast|base|slow`
+- Semantic colors: `--color-*` variables
 
 ### Reusable components (`src/styles/components.css`)
 
-- `.panel-card`: shared panel shell for framed blocks.
-- `.input-field`: default text input appearance for login/lobby and future forms.
-- `.btn-primary` / `.btn-secondary`: standard action buttons.
-- `.start-btn`, `.start-item`, `.task`, `.icon`, `.win-controls button`: include unified `:hover`, `:focus-visible`, `:active`, `:disabled` states.
+- `.panel-card`
+- `.input-field`
+- `.btn-primary`, `.btn-secondary`
+- Shared interactive states for Start/taskbar/icon/window controls
 
 ### Layout and effects
 
-- Keep positioning/layout primitives in `src/styles/layout.css`.
-- Keep cinematic/flicker/scanline animation rules in `src/styles/effects.css`.
-- In `index.html`, load styles in this order: `tokens.css` → `layout.css` → `components.css` → `effects.css`.
+- Keep layout primitives in `src/styles/layout.css`
+- Keep cinematic/flicker/scanline rules in `src/styles/effects.css`
+- In `index.html`, load styles in this order:
+  `tokens.css` → `layout.css` → `components.css` → `effects.css`
+
+## Troubleshooting
+
+- **Blank page or missing assets:** confirm static server is running on `:4173`.
+- **Co-op not connecting:** confirm multiplayer server is running on `:8787` (or your configured port).
+- **Progression seems stuck:** check objectives, read more files in Explorer, and verify command syntax in Terminal.
+- **Need a fresh run:** execute `reset-session` in Terminal.
+
+## License
+
+See [LICENSE](./LICENSE).
