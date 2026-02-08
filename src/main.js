@@ -51,6 +51,7 @@ const taskList = document.getElementById("taskList");
 const desktopIcons = document.getElementById("desktopIcons");
 const startBtn = document.getElementById("startBtn");
 const startMenu = document.getElementById("startMenu");
+const startMenuItems = document.getElementById("startMenuItems");
 const trayClock = document.getElementById("trayClock");
 const trayState = document.getElementById("trayState");
 const trayConnection = document.getElementById("trayConnection");
@@ -74,9 +75,20 @@ let desktopInitialized = false;
 let connectionQuality = "offline";
 let syncState = "idle";
 
+function setTrayHealth(el, value = "") {
+  const upper = String(value).toUpperCase();
+  let health = "active";
+  if (upper.includes("OFFLINE") || upper.includes("ERROR") || upper.includes("DEGRADED") || upper.includes("WATCH")) health = "fault";
+  else if (upper.includes("IDLE") || upper.includes("RECONNECT")) health = "stale";
+  el.dataset.health = health;
+}
+
+
 function updateConnectionIndicators() {
   trayConnection.textContent = `${COPY.shell.tray.linkPrefix}: ${connectionQuality.toUpperCase()}`;
   traySync.textContent = `${COPY.shell.tray.syncPrefix}: ${syncState.toUpperCase()}`;
+  setTrayHealth(trayConnection, trayConnection.textContent);
+  setTrayHealth(traySync, traySync.textContent);
 }
 
 function buildSessionUrl({ room, code, name, host }) {
@@ -320,14 +332,17 @@ function mountObjectivePanel() {
           : `Relay handoff pending (${Math.max(0, Math.ceil((state.relaySignal.expiresAt - Date.now()) / 1000))}s remaining).`)
       : COPY.shell.objectives.activeRelay;
     panel.innerHTML = `
+      <div class="system-label">mission telemetry</div>
       <div class="objective-title">${getChapterLabel(state.chapter)}</div>
-      <div class="objective-subtitle">${COPY.shell.objectives.panelRole}: ${state.activeRole}</div>
-      <div class="notice">${COPY.shell.objectives.trust}: ${state.teamTrustScore || 0}</div>
-      <div class="notice">${COPY.shell.objectives.teammate} (${teammateRole}): ${teammateId}</div>
-      <div class="notice">${teammateActivity ? `${COPY.shell.objectives.teammateActivityPrefix}: ${teammateActivity.command}` : COPY.shell.objectives.noTeammateActivity}</div>
+      <div class="objective-subtitle">${COPY.shell.objectives.panelRole}: <span class="status-badge active">${state.activeRole}</span></div>
+      <div class="kv-diagnostics">
+        <div class="kv-row"><span class="kv-key">${COPY.shell.objectives.trust}</span><span class="kv-value">${state.teamTrustScore || 0}</span></div>
+        <div class="kv-row"><span class="kv-key">${COPY.shell.objectives.teammate}</span><span class="kv-value">${teammateRole}: ${teammateId}</span></div>
+        <div class="kv-row"><span class="kv-key">activity</span><span class="kv-value">${teammateActivity ? teammateActivity.command : COPY.shell.objectives.noTeammateActivity}</span></div>
+      </div>
       <div class="notice">${relayCue}</div>
       <div class="objective-subtitle">${COPY.shell.objectives.activeObjectives}</div>
-      <ul>${active.map((objective) => `<li><strong>[${(objective.roles || ["operator"]).join("/")}]</strong> ${objective.label}</li>`).join("") || `<li>${COPY.shell.objectives.allDone}</li>`}</ul>
+      <ul>${active.map((objective) => `<li><span class="status-badge">${(objective.roles || ["operator"]).join("/")}</span> ${objective.label}</li>`).join("") || `<li>${COPY.shell.objectives.allDone}</li>`}</ul>
     `;
   };
 
@@ -351,8 +366,9 @@ function mountOnboardingPanel() {
     const checklist = getOnboardingChecklistItems(state, state.activeRole, 5);
     panel.style.display = "block";
     panel.innerHTML = `
+      <div class="system-label">operator bootstrap</div>
       <div class="objective-title">${COPY.shell.onboarding.title}</div>
-      <div class="objective-subtitle">${COPY.shell.objectives.panelRole}: ${state.activeRole}</div>
+      <div class="objective-subtitle">${COPY.shell.objectives.panelRole}: <span class="status-badge active">${state.activeRole}</span></div>
       <ul>${checklist.map((item) => `<li>${item.hint}</li>`).join("") || "<li>All current objectives complete.</li>"}</ul>
       <div class="onboarding-actions">
         <button type="button" data-open="terminal">Open Command Shell</button>
@@ -408,7 +424,7 @@ function initDesktop() {
     icon.className = "icon";
     icon.type = "button";
     icon.setAttribute("aria-label", `Open ${app.name}`);
-    icon.innerHTML = `<div class="glyph">${app.icon}</div><div>${app.name}</div>`;
+    icon.innerHTML = `<div class="glyph" aria-hidden="true">${app.icon}</div><div class="system-label">${app.name}</div>`;
     icon.ondblclick = () => app.open();
     icon.onclick = () => app.open();
     icon.onkeydown = (e) => {
@@ -427,7 +443,7 @@ function initDesktop() {
       startMenu.style.display = "none";
       app.open();
     };
-    startMenu.appendChild(item);
+    startMenuItems.appendChild(item);
   }
 
   const reset = document.createElement("button");
@@ -444,7 +460,7 @@ function initDesktop() {
     clearState();
     window.location.reload();
   };
-  startMenu.appendChild(reset);
+  startMenuItems.appendChild(reset);
 
   const shutdown = document.createElement("button");
   shutdown.className = "start-item";
@@ -455,7 +471,7 @@ function initDesktop() {
     state.complianceScore -= 1;
     save();
   };
-  startMenu.appendChild(shutdown);
+  startMenuItems.appendChild(shutdown);
 
   startBtn.onclick = () => {
     startMenu.style.display = startMenu.style.display === "block" ? "none" : "block";
@@ -472,7 +488,9 @@ function initDesktop() {
   setInterval(() => {
     const now = new Date(Date.now() + state.driftMinutes * 60_000);
     trayClock.textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    setTrayHealth(trayClock, syncState);
     trayState.textContent = getTrayWarningText(state);
+    setTrayHealth(trayState, trayState.textContent);
 
     const glitch = getAppGlitchStyle(state);
     desktopRoot.style.filter = glitch.filter;

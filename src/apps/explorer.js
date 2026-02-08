@@ -13,13 +13,14 @@ function getDepth(path) {
 }
 
 export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntries, state, completeObjective, saveState }) {
-  makeWindow("explorer", COPY.apps.explorer, (content) => {
-    content.innerHTML = `<div class="explorer-layout"><div class="tree" id="dirTree"></div><div class="file-view"><div id="pathLabel" class="muted"></div><div id="fileList" style="margin-top:8px"></div><pre id="preview" style="white-space:pre-wrap; border-top:1px solid #2b4968; margin-top:8px; padding-top:8px;"></pre></div></div>`;
+  makeWindow("explorer", COPY.apps.explorer, (content, win) => {
+    content.innerHTML = `<div class="app-shell"><div class="system-label">filesystem navigator</div><div class="explorer-layout"><div class="tree panel-dense" id="dirTree"></div><div class="file-view panel-dense"><div class="field-legend">path context</div><div id="pathLabel" class="muted"></div><div id="fileList" style="margin-top:6px"></div><pre id="preview" style="white-space:pre-wrap; border-top:1px solid #2b4968; margin-top:6px; padding-top:6px;"></pre></div></div></div>`;
     const tree = content.querySelector("#dirTree");
     const pathLabel = content.querySelector("#pathLabel");
     const fileList = content.querySelector("#fileList");
     const preview = content.querySelector("#preview");
     let current = "/";
+    win?.setHealth?.("active");
 
     const selectDir = (path) => {
       current = path;
@@ -59,15 +60,18 @@ export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntri
 
           if (full === "/logs/audit_redacted.log" && !state.unlocked.redactedLog && state.activeRole !== "observer") {
             preview.innerHTML = COPY.explorer.deniedAudit;
+            win?.setHealth?.("fault");
             return;
           }
 
           if (full === "/media/cam2_20030418.dat" && !state.unlocked.mediaReveal) {
             preview.innerHTML = COPY.explorer.unreadableMedia;
+            win?.setHealth?.("stale");
             return;
           }
 
           preview.textContent = getDynamicFile(full) || COPY.explorer.empty;
+          win?.setHealth?.("active");
           if (full === "/logs/audit_redacted.log" && (state.unlocked.redactedLog || state.activeRole === "observer")) {
             completeObjective({ type: "objective.complete", objectiveId: "access_redacted_audit" });
           }

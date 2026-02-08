@@ -5,7 +5,7 @@ export function createWindowManager({ desktopRoot, taskList, state = null, persi
   let resizeState = null;
   let activeWindowId = null;
 
-  const TASKBAR_HEIGHT = 34;
+  const TASKBAR_HEIGHT = 36;
   const MIN_WIDTH = 280;
   const MIN_HEIGHT = 200;
   const TITLEBAR_HEIGHT = 30;
@@ -52,6 +52,21 @@ export function createWindowManager({ desktopRoot, taskList, state = null, persi
     }
   }
 
+
+
+  function applyWindowHealth(win) {
+    const health = win.health || "active";
+    win.el.dataset.health = health;
+    win.task.dataset.health = health;
+    const dots = win.el.querySelectorAll(".window-indicators .indicator-dot");
+    dots.forEach((dot) => dot.classList.toggle("is-on", dot.dataset.health === health));
+    const badge = win.el.querySelector("[data-window-health]");
+    if (badge) {
+      badge.className = `status-badge ${health}`;
+      badge.textContent = health;
+    }
+  }
+
   function persistWindow(win) {
     if (!state) return;
     if (!state.windowLayout || typeof state.windowLayout !== "object") {
@@ -91,6 +106,7 @@ export function createWindowManager({ desktopRoot, taskList, state = null, persi
       win.el.style.width = `${metrics.width}px`;
       win.el.style.height = `${metrics.workHeight}px`;
       win.state = "maximized";
+      win.health = "active";
       win.el.style.display = "flex";
       activeWindowId = win.id;
     } else if (nextState === "minimized") {
@@ -103,6 +119,7 @@ export function createWindowManager({ desktopRoot, taskList, state = null, persi
         };
       }
       win.state = "minimized";
+      win.health = "stale";
       win.el.style.display = "none";
       if (activeWindowId === win.id) activeWindowId = null;
     } else {
@@ -111,12 +128,14 @@ export function createWindowManager({ desktopRoot, taskList, state = null, persi
         applyBounds(win, restore);
       }
       win.state = "normal";
+      win.health = "active";
       win.el.style.display = "flex";
       activeWindowId = win.id;
     }
 
     win.el.dataset.state = win.state;
     updateTaskStates();
+    applyWindowHealth(win);
     persistWindow(win);
   }
 
@@ -128,7 +147,9 @@ export function createWindowManager({ desktopRoot, taskList, state = null, persi
     }
     el.style.zIndex = ++zCounter;
     activeWindowId = win.id;
+    win.health = "active";
     updateTaskStates();
+    applyWindowHealth(win);
   }
 
   function attachGlobalPointerHandlers() {
@@ -255,7 +276,7 @@ export function createWindowManager({ desktopRoot, taskList, state = null, persi
       height: defaultBounds.height
     });
     el.style.zIndex = ++zCounter;
-    el.innerHTML = `<div class="titlebar"><span>${title}</span><div class="win-controls"><button data-minimize aria-label="Minimize window">—</button><button data-maximize aria-label="Maximize or restore window">□</button><button data-close aria-label="Close window">×</button></div></div><div class="content"></div>`;
+    el.innerHTML = `<div class="titlebar"><span class="title-main">${title}</span><span class="status-badge active" data-window-health>active</span><div class="window-indicators"><span class="indicator-dot" data-health="active"></span><span class="indicator-dot" data-health="stale"></span><span class="indicator-dot" data-health="fault"></span></div><div class="win-controls"><button data-minimize aria-label="Minimize window">_</button><button data-maximize aria-label="Maximize or restore window">▢</button><button data-close aria-label="Close window">×</button></div></div><div class="content"></div>`;
     desktopRoot.appendChild(el);
 
     const task = document.createElement("button");
@@ -270,10 +291,16 @@ export function createWindowManager({ desktopRoot, taskList, state = null, persi
       task,
       content: el.querySelector(".content"),
       state: "normal",
-      restoreBounds: remembered?.restoreBounds || null
+      restoreBounds: remembered?.restoreBounds || null,
+      health: "active",
+      setHealth(nextHealth = "active") {
+        this.health = nextHealth;
+        applyWindowHealth(this);
+      }
     };
 
     windows.set(id, win);
+    applyWindowHealth(win);
     makeDraggable(el);
     addResizeHandles(el, win);
     renderer(win.content, win);

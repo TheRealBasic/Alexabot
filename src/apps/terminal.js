@@ -32,13 +32,14 @@ function canRunCommand(role, cmd) {
 }
 
 export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirectoryEntries, isContentVisible, state, saveState, completeObjective, notify }) {
-  makeWindow("terminal", "Terminal", (content) => {
+  makeWindow("terminal", "Terminal", (content, win) => {
     const role = state.activeRole || "operator";
     content.classList.add("terminal");
     content.innerHTML = `<div class="terminal-output" id="termOut"></div><div class="terminal-input"><span>${role}@eidolon:$</span><input id="termInput" autocomplete="off" /></div>`;
     const out = content.querySelector("#termOut");
     const input = content.querySelector("#termInput");
     let cwd = "/home/operator";
+    win?.setHealth?.("active");
 
     function print(txt = "") {
       out.textContent += `${txt}\n`;
@@ -102,6 +103,7 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
 
       if (!canRunCommand(role, cmd) && !isActionCommand) {
         print("permission denied for current role");
+        win?.setHealth?.("fault");
         return;
       }
 
@@ -119,12 +121,12 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       else if (cmd === "ls") {
         const p = normalizePath(cwd, args[0]);
         const entries = getDirectoryEntries(p, state);
-        if (!fs[p]) print("ls: path not found");
-        else print(entries.filter((x) => state.unlocked.archive || !x.startsWith(".")).join("  "));
+        if (!fs[p]) { print("ls: path not found"); win?.setHealth?.("stale"); }
+        else { print(entries.filter((x) => state.unlocked.archive || !x.startsWith(".")).join("  ")); win?.setHealth?.("active"); }
       } else if (cmd === "cd") {
         const p = normalizePath(cwd, args[0]);
         if (fs[p]) cwd = p;
-        else print("cd: no such directory");
+        else { print("cd: no such directory"); win?.setHealth?.("stale"); }
       } else if (cmd === "cat") {
         const p = normalizePath(cwd, args[0]);
         if (!isContentVisible(p, state)) print("cat: file not found");
@@ -153,7 +155,7 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
         clearState();
         notify?.("Session state cleared. Reloading...", { actor: actorLabel(state.playerId) });
         setTimeout(() => window.location.reload(), 250);
-      } else print("command not found");
+      } else { print("command not found"); win?.setHealth?.("fault"); }
 
       if (cmdLine.includes("shutdown") || cmdLine.includes("exit")) {
         print("session cannot be terminated while continuity is pending");

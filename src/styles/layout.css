@@ -68,7 +68,7 @@ body {
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-2);
 }
 
 #desktopRoot {
@@ -93,13 +93,16 @@ body {
   left: var(--space-0);
   right: var(--space-0);
   bottom: var(--space-0);
-  height: 34px;
-  background: var(--color-taskbar);
-  border-top: 1px solid #284764;
+  height: 36px;
+  background: linear-gradient(180deg, #0c1826, #09121c);
+  border-top: 1px solid #426785;
+  border-bottom: 1px solid #050b11;
   display: flex;
   align-items: center;
   z-index: 40;
   font-size: var(--font-size-sm);
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
 }
 
 .tasklist {
@@ -107,32 +110,80 @@ body {
   display: flex;
   gap: var(--space-1);
   overflow: hidden;
+  padding-right: var(--space-1);
+  border-left: 1px solid #203a52;
+  border-right: 1px solid #203a52;
 }
 
 .tray {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  padding: 0 var(--space-4);
+  gap: var(--space-1);
+  padding: 0 var(--space-1);
   color: #a9bdd3;
+  height: 100%;
+}
+
+.tray-segment {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #325572;
+  background: rgba(9, 26, 39, 0.9);
+  padding: 0 7px;
+  letter-spacing: 0.35px;
+  color: #b7d0e4;
+}
+
+.tray-segment.clock {
+  min-width: 60px;
+  justify-content: center;
+}
+
+
+.tray-segment[data-health="active"] {
+  border-color: #4e7596;
+}
+
+.tray-segment[data-health="stale"] {
+  border-color: #5f6472;
+  color: #b9c5d2;
+}
+
+.tray-segment[data-health="fault"] {
+  border-color: #7f4750;
+  color: #e6bcc2;
 }
 
 .start-menu {
   position: absolute;
   left: var(--space-3);
-  bottom: 37px;
-  width: 220px;
-  background: #081421;
-  border: 1px solid #2d506f;
+  bottom: 39px;
+  width: 260px;
+  background: #08131e;
+  border: 1px solid #3b5f7d;
   display: none;
   z-index: 45;
   box-shadow: var(--elevation-1);
+  padding: var(--space-2);
+}
+
+.start-menu-header {
+  border: 1px solid #2a4a65;
+  background: #0c2032;
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.start-menu-items {
+  border: 1px solid #27455f;
+  background: rgba(5, 15, 23, 0.85);
 }
 
 .explorer-layout {
   display: grid;
   grid-template-columns: 200px 1fr;
-  gap: var(--space-4);
+  gap: var(--space-2);
   height: 100%;
 }
 
@@ -145,7 +196,7 @@ body {
   border: 1px solid #2d4f6f;
   background: rgba(4, 13, 21, 0.84);
   box-shadow: var(--elevation-1);
-  padding: var(--space-4);
+  padding: var(--space-3);
   font-size: var(--font-size-sm);
   line-height: 1.4;
 }
@@ -159,7 +210,7 @@ body {
   border: 1px solid #3b5f7f;
   background: rgba(7, 18, 28, 0.93);
   box-shadow: var(--elevation-1);
-  padding: var(--space-4);
+  padding: var(--space-3);
   font-size: var(--font-size-sm);
   line-height: 1.4;
 }
@@ -169,7 +220,7 @@ body {
   right: var(--space-6);
   bottom: 44px;
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
   z-index: 55;
   width: 310px;
 }
