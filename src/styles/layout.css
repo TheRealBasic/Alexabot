@@ -1,0 +1,175 @@
+* { box-sizing: border-box; }
+
+html,
+body {
+  margin: var(--space-0);
+  width: 100%;
+  height: 100%;
+  background: var(--color-bg-black);
+  overflow: hidden;
+  font-family: var(--font-ui);
+}
+
+#boot,
+#desktopRoot,
+#login {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#boot {
+  background: var(--color-bg-black);
+  color: #87bf8f;
+  font-family: var(--font-mono);
+  padding: var(--space-6);
+  font-size: var(--font-size-lg);
+  line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+}
+
+#boot pre {
+  margin: var(--space-0);
+  white-space: pre-wrap;
+  flex: 1;
+  overflow: hidden;
+}
+
+#splash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 70% 20%, #1f3348, #04080d 70%);
+  color: #c9d7e7;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+}
+
+#splash h1 {
+  margin: var(--space-0);
+  font-weight: 500;
+  font-size: var(--font-size-display);
+}
+
+#splash p {
+  margin-top: var(--space-3);
+  color: #7e90a5;
+}
+
+#login {
+  display: none;
+  background: linear-gradient(130deg, #0b1520, #0a1f31 60%, #0a101a);
+  color: #d2dfeb;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+#desktopRoot {
+  display: none;
+  background: radial-gradient(circle at 20% 20%, #15273a, #081119 75%);
+  color: var(--color-text);
+  position: relative;
+  user-select: none;
+}
+
+.desktop-icons {
+  position: absolute;
+  left: var(--space-4);
+  top: var(--space-4);
+  display: grid;
+  gap: var(--space-5);
+  z-index: 3;
+}
+
+.taskbar {
+  position: absolute;
+  left: var(--space-0);
+  right: var(--space-0);
+  bottom: var(--space-0);
+  height: 34px;
+  background: var(--color-taskbar);
+  border-top: 1px solid #284764;
+  display: flex;
+  align-items: center;
+  z-index: 40;
+  font-size: var(--font-size-sm);
+}
+
+.tasklist {
+  flex: 1;
+  display: flex;
+  gap: var(--space-1);
+  overflow: hidden;
+}
+
+.tray {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-4);
+  color: #a9bdd3;
+}
+
+.start-menu {
+  position: absolute;
+  left: var(--space-3);
+  bottom: 37px;
+  width: 220px;
+  background: #081421;
+  border: 1px solid #2d506f;
+  display: none;
+  z-index: 45;
+  box-shadow: var(--elevation-1);
+}
+
+.explorer-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: var(--space-4);
+  height: 100%;
+}
+
+.objective-panel {
+  position: absolute;
+  right: var(--space-6);
+  top: var(--space-6);
+  width: 270px;
+  z-index: 20;
+  border: 1px solid #2d4f6f;
+  background: rgba(4, 13, 21, 0.84);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-4);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+}
+
+.onboarding-panel {
+  position: absolute;
+  left: var(--space-6);
+  top: var(--space-6);
+  width: 320px;
+  z-index: 22;
+  border: 1px solid #3b5f7f;
+  background: rgba(7, 18, 28, 0.93);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-4);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+}
+
+.notification-center {
+  position: absolute;
+  right: var(--space-6);
+  bottom: 44px;
+  display: grid;
+  gap: var(--space-3);
+  z-index: 55;
+  width: 310px;
+}
