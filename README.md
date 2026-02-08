@@ -185,6 +185,18 @@ npm run lint
 
 Use `npm run lint:fix` when you want ESLint to auto-fix safe issues.
 
+Format code with Prettier before opening a PR:
+
+```bash
+npm run format
+```
+
+Validate formatting in CI/local preflight checks:
+
+```bash
+npm run format:check
+```
+
 Run the test suite when validating behavior and regression risk:
 
 ```bash

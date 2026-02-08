@@ -9,7 +9,9 @@
     "lint": "eslint src/ server/ tests/",
     "predev:multiplayer": "npm install --no-audit --no-fund",
     "dev:multiplayer": "node server/multiplayer-server.js",
-    "lint:fix": "eslint src/ server/ tests/ --fix"
+    "lint:fix": "eslint src/ server/ tests/ --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "ws": "^8.18.0"
