@@ -57,8 +57,145 @@ function closeUnauthorized(socket, reason) {
 
 function canPerformAction(role, action = {}) {
   if (role === "spectator") return false;
-  if (action.type === "state.patch") return role === "host";
   return role === "host" || role === "player";
+}
+
+const TERMINAL_COMMAND_TYPES = new Set([
+  "CMD_OBSERVER_PING",
+  "CMD_EXEC_RELAY",
+  "CMD_UNLOCK_ARCHIVE",
+  "CMD_SET_TIME",
+  "CMD_RECOVER_MANIFEST",
+  "CMD_STRINGS"
+]);
+
+const ACTION_HANDLERS = {
+  "cursor.move": applyCursorMove,
+  "terminal.command": applyTerminalCommand,
+  "objective.interact": applyObjectiveInteract
+};
+
+function isFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function sanitizeString(value, maxLength = 200) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, maxLength);
+}
+
+function rejectAction(socket, reason, { roomId, playerId, role, rawAction }) {
+  console.warn(`[action.rejected] room=${roomId} player=${playerId} role=${role} reason=${reason} actionType=${rawAction?.type || "unknown"}`);
+  if (socket.readyState === socket.OPEN) {
+    socket.send(JSON.stringify({
+      type: "action.rejected",
+      reason,
+      action: rawAction || null,
+      meta: { roomId, playerId, role }
+    }));
+  }
+}
+
+function applyCursorMove(room, normalizedAction) {
+  if (!room.state.presence || typeof room.state.presence !== "object") room.state.presence = {};
+  const previous = room.state.presence[normalizedAction.playerId] || {};
+  room.state.presence[normalizedAction.playerId] = {
+    ...previous,
+    cursor: {
+      x: normalizedAction.x,
+      y: normalizedAction.y,
+      view: normalizedAction.view,
+      updatedAt: normalizedAction.timestamp
+    }
+  };
+}
+
+function applyTerminalCommand(room, normalizedAction) {
+  applyAction(room.state, normalizedAction.command);
+}
+
+function applyObjectiveInteract(room, normalizedAction) {
+  applyAction(room.state, { type: "objective.complete", objectiveId: normalizedAction.objectiveId });
+}
+
+function normalizeAction(rawAction, joinedSession) {
+  if (!rawAction || typeof rawAction !== "object" || Array.isArray(rawAction)) {
+    return { error: "action must be an object" };
+  }
+
+  if (!Object.hasOwn(ACTION_HANDLERS, rawAction.type)) {
+    return { error: "unknown action type" };
+  }
+
+  if (rawAction.type === "cursor.move") {
+    const x = Number(rawAction.x);
+    const y = Number(rawAction.y);
+    if (!isFiniteNumber(x) || !isFiniteNumber(y)) return { error: "cursor.move requires numeric x and y" };
+    return {
+      action: {
+        type: "cursor.move",
+        playerId: joinedSession.playerId,
+        x,
+        y,
+        view: sanitizeString(rawAction.view, 80) || null,
+        timestamp: isFiniteNumber(Number(rawAction.timestamp)) ? Number(rawAction.timestamp) : Date.now()
+      }
+    };
+  }
+
+  if (rawAction.type === "objective.interact") {
+    const objectiveId = sanitizeString(rawAction.objectiveId, 120);
+    if (!objectiveId) return { error: "objective.interact requires objectiveId" };
+    return {
+      action: {
+        type: "objective.interact",
+        playerId: joinedSession.playerId,
+        objectiveId,
+        timestamp: Date.now()
+      }
+    };
+  }
+
+  const command = rawAction.command;
+  if (!command || typeof command !== "object" || Array.isArray(command)) {
+    return { error: "terminal.command requires a command object" };
+  }
+  if (!TERMINAL_COMMAND_TYPES.has(command.type)) {
+    return { error: "terminal.command contains unsupported command type" };
+  }
+
+  const normalizedCommand = {
+    type: command.type,
+    actor: sanitizeString(command.actor, 64) || joinedSession.playerId,
+    role: sanitizeString(command.role, 32) || undefined,
+    timestamp: isFiniteNumber(Number(command.timestamp)) ? Number(command.timestamp) : Date.now(),
+    commandLine: sanitizeString(command.commandLine, 160) || undefined
+  };
+
+  if (command.type === "CMD_EXEC_RELAY") {
+    normalizedCommand.code = sanitizeString(command.code, 16) || "";
+  }
+  if (command.type === "CMD_SET_TIME") {
+    if (!Number.isInteger(command.hours) || !Number.isInteger(command.minutes)) {
+      return { error: "CMD_SET_TIME requires integer hours and minutes" };
+    }
+    normalizedCommand.hours = command.hours;
+    normalizedCommand.minutes = command.minutes;
+  }
+  if (command.type === "CMD_STRINGS") {
+    normalizedCommand.path = sanitizeString(command.path, 200) || "";
+    normalizedCommand.decodedText = typeof command.decodedText === "string" ? command.decodedText.slice(0, 2000) : "";
+  }
+
+  return {
+    action: {
+      type: "terminal.command",
+      playerId: joinedSession.playerId,
+      command: normalizedCommand
+    }
+  };
 }
 
 function createRoom(roomId) {
@@ -89,18 +226,6 @@ function computePatch(previous, next) {
     }
   }
   return patch;
-}
-
-function applyClientPatch(room, payload = {}) {
-  const blockedKeys = new Set(["chapter", "completedObjectives", "objectives"]);
-  for (const [key, value] of Object.entries(payload)) {
-    if (blockedKeys.has(key)) continue;
-    if (value && typeof value === "object" && !Array.isArray(value) && typeof room.state[key] === "object" && room.state[key] !== null && !Array.isArray(room.state[key])) {
-      room.state[key] = { ...room.state[key], ...value };
-    } else {
-      room.state[key] = value;
-    }
-  }
 }
 
 function broadcast(room, message) {
@@ -189,18 +314,25 @@ wss.on("connection", (socket) => {
     if (!joinedSession) return;
 
     const previous = structuredClone(room.state);
-    const action = { ...(message.action || {}), senderPlayerId: joinedSession.playerId };
+    const rawAction = message.action || {};
 
-    if (!canPerformAction(joinedSession.role, action)) {
+    if (!canPerformAction(joinedSession.role, rawAction)) {
       socket.close(CLOSE_CODES.forbidden, "insufficient role permissions");
       return;
     }
 
-    if (action.type === "state.patch") {
-      applyClientPatch(room, action.patch);
-    } else {
-      applyAction(room.state, action);
+    const normalized = normalizeAction(rawAction, joinedSession);
+    if (normalized.error) {
+      rejectAction(socket, normalized.error, {
+        roomId: room.roomId,
+        playerId: joinedSession.playerId,
+        role: joinedSession.role,
+        rawAction
+      });
+      return;
     }
+    const action = normalized.action;
+    ACTION_HANDLERS[action.type](room, action);
 
     room.version += 1;
     const meta = { roomId: room.roomId, version: room.version, playerId: joinedSession.playerId, role: joinedSession.role };
