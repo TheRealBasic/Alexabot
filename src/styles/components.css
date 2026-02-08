@@ -335,6 +335,49 @@
   background: rgba(112, 154, 191, 0.35);
 }
 
+
+.breadcrumbs,
+.sort-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.sort-controls {
+  margin-top: 6px;
+}
+
+.crumb {
+  border: 1px solid #355879;
+  background: rgba(15, 34, 51, 0.92);
+  color: #d0e0ee;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.crumb:hover {
+  background: rgba(28, 50, 70, 0.96);
+}
+
+.file-grid {
+  display: grid;
+  grid-template-columns: 2fr 0.8fr 1fr 1.4fr 0.9fr;
+  gap: 6px;
+  align-items: center;
+  font-size: var(--font-size-xs);
+}
+
+.file-grid-head {
+  border-bottom: 1px solid #2f4f69;
+  color: #8fa9c0;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  padding: 4px var(--space-2);
+}
+
+
 .muted {
   color: var(--color-text-muted);
 }
