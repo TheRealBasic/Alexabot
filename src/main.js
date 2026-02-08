@@ -101,6 +101,7 @@ const multiplayer = sessionMode === "coop"
   ? createMultiplayerClient({
     roomId,
     playerId,
+    authToken: params.get("token") || "",
     url: params.get("ws") || "ws://localhost:8787",
     onSnapshot: (snapshot) => {
       applyAuthoritativeUpdate(snapshot, true);
