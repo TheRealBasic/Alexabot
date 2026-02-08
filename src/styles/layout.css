@@ -239,6 +239,20 @@ body {
   line-height: 1.4;
 }
 
+.recap-panel {
+  position: absolute;
+  left: var(--space-6);
+  bottom: 56px;
+  width: 360px;
+  z-index: 24;
+  border: 1px solid #4a6885;
+  background: rgba(7, 20, 31, 0.94);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-3);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+}
+
 .notification-center {
   position: absolute;
   right: var(--space-6);

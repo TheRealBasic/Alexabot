@@ -160,6 +160,7 @@ let previousSnapshot = JSON.parse(JSON.stringify(state));
 let lastProgressSignature = getProgressSignature(state);
 let renderObjectivePanel = () => {};
 let renderOnboardingPanel = () => {};
+let renderRecapPanel = () => {};
 
 function ensureUiHintsState() {
   if (!state.uiHints || typeof state.uiHints !== "object") state.uiHints = {};
@@ -179,6 +180,52 @@ function syncOnboardingDismissalByChapter() {
   }
 }
 
+const CHAPTER_RECAPS = {
+  2: {
+    discovered: "Archive-gating logic and the 03:11 maintenance marker were validated as deliberate controls.",
+    worldState: "Maintenance-window pathways and restricted records are now exposed for recovery attempts.",
+    nextObjective: "Recover deleted manifest evidence before continuity systems overwrite the remaining forensic trail."
+  },
+  3: {
+    discovered: "Recovered manifests and cam2 evidence contradict the official timeline and expose narrative tampering.",
+    worldState: "The system is now in accounting mode where trust outcomes influence the final route through the incident record.",
+    nextObjective: "Reconcile logs, testimony, and trust signals to lock in a defensible final account."
+  }
+};
+
+function createRecapPayload(chapter, trigger = "chapter") {
+  const template = CHAPTER_RECAPS[chapter];
+  if (!template) return null;
+  return {
+    id: `recap-${chapter}-${Date.now()}`,
+    chapter,
+    trigger,
+    discovered: template.discovered,
+    worldState: template.worldState,
+    nextObjective: template.nextObjective,
+    createdAt: Date.now()
+  };
+}
+
+function storeRecap(recap) {
+  if (!recap) return;
+  state.lastRecap = recap;
+  if (!Array.isArray(state.recapHistory)) state.recapHistory = [];
+  state.recapHistory.push(recap);
+  state.recapHistory = state.recapHistory.slice(-8);
+}
+
+function maybeTriggerChapterRecap(previousChapter, nextChapter, trigger = "chapter") {
+  if (Number(nextChapter) <= Number(previousChapter)) return;
+  const recap = createRecapPayload(nextChapter, trigger);
+  if (!recap) return;
+  const alreadySeen = Array.isArray(state.recapHistory)
+    && state.recapHistory.some((entry) => Number(entry.chapter) === Number(nextChapter));
+  if (alreadySeen && trigger === "chapter") return;
+  storeRecap(recap);
+  notify(`recap available: act ${nextChapter} transition summary archived`);
+}
+
 const applyAuthoritativeUpdate = (patch, isSnapshot = false) => {
   const prev = JSON.parse(JSON.stringify(state));
   if (isSnapshot) {
@@ -194,6 +241,7 @@ const applyAuthoritativeUpdate = (patch, isSnapshot = false) => {
   if (!state.roles[currentRole]) state.roles[currentRole] = playerId;
   rehydrateContentFromState(state);
   presentation.handleStateTransition(prev, state);
+  maybeTriggerChapterRecap(prev.chapter, state.chapter, isSnapshot ? "snapshot" : "patch");
   previousSnapshot = JSON.parse(JSON.stringify(state));
   const signature = getProgressSignature(state);
   if (signature !== lastProgressSignature) {
@@ -201,6 +249,7 @@ const applyAuthoritativeUpdate = (patch, isSnapshot = false) => {
     renderObjectivePanel();
     syncOnboardingDismissalByChapter();
     renderOnboardingPanel();
+    renderRecapPanel();
   }
 };
 
@@ -232,7 +281,8 @@ const multiplayer = sessionMode === "coop"
       } else if (action.type === "objective.interact") {
         result = applyAction(state, { type: "objective.complete", objectiveId: action.objectiveId });
       }
-      refreshChapterFromState(state);
+      const chapterUpdate = refreshChapterFromState(state);
+      maybeTriggerChapterRecap(chapterUpdate.previousChapter, chapterUpdate.chapter, "action");
       for (const note of result.notifications || []) notify(note.message, { actor: note.actor });
       rehydrateContentFromState(state);
       evaluateBehaviorReactions({ state, fs, saveState: persist });
@@ -244,6 +294,7 @@ const multiplayer = sessionMode === "coop"
         renderObjectivePanel();
         syncOnboardingDismissalByChapter();
         renderOnboardingPanel();
+        renderRecapPanel();
       }
     },
     onPresence: (presence) => {
@@ -293,7 +344,8 @@ const dispatchAction = (action) => {
   }
 
   const result = applyAction(state, action);
-  refreshChapterFromState(state);
+  const chapterUpdate = refreshChapterFromState(state);
+  maybeTriggerChapterRecap(chapterUpdate.previousChapter, chapterUpdate.chapter, "action");
   for (const note of result.notifications || []) notify(note.message, { actor: note.actor });
   return { accepted: true, ...result };
 };
@@ -319,6 +371,7 @@ const save = () => {
       renderObjectivePanel();
       syncOnboardingDismissalByChapter();
       renderOnboardingPanel();
+      renderRecapPanel();
     }
     return;
   }
@@ -476,6 +529,39 @@ function mountOnboardingPanel() {
   return render;
 }
 
+function mountRecapPanel() {
+  const panel = document.createElement("aside");
+  panel.className = "recap-panel";
+  panel.id = "recapPanel";
+  desktopRoot.appendChild(panel);
+
+  const render = () => {
+    const recap = state.lastRecap;
+    if (!recap) {
+      panel.style.display = "none";
+      return;
+    }
+    panel.style.display = "block";
+    panel.innerHTML = `
+      <div class="system-label">chapter recap</div>
+      <div class="objective-title">Act ${recap.chapter} Transition</div>
+      <div class="objective-subtitle">What was discovered</div>
+      <p>${recap.discovered}</p>
+      <div class="objective-subtitle">What changed in world state</div>
+      <p>${recap.worldState}</p>
+      <div class="objective-subtitle">Why next objectives matter</div>
+      <p>${recap.nextObjective}</p>
+      <div class="onboarding-actions">
+        <button type="button" data-open="help">Review in Operations Manual</button>
+      </div>
+    `;
+    panel.querySelector('[data-open="help"]').onclick = () => openHelp(appContext);
+  };
+
+  render();
+  return render;
+}
+
 const apps = [
   { id: "explorer", name: COPY.apps.explorer, icon: "📁", roles: ["operator", "observer"], open: () => openExplorer(appContext) },
   { id: "terminal", name: COPY.apps.terminal, icon: "⌨", roles: ["operator", "observer"], open: () => openTerminal(appContext) },
@@ -533,6 +619,7 @@ function initDesktop() {
   syncOnboardingDismissalByChapter();
   renderObjectivePanel = mountObjectivePanel();
   renderOnboardingPanel = mountOnboardingPanel();
+  renderRecapPanel = mountRecapPanel();
 
   startBtn.textContent = COPY.apps.menuLabel;
   desktopIcons.textContent = "";

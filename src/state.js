@@ -77,6 +77,8 @@ export const defaultState = {
     onboardingDismissedChapter: 0,
     objectivePanelConfirmedChapters: []
   },
+  lastRecap: null,
+  recapHistory: [],
   guidanceMetrics: {
     failedCommandStreak: 0,
     lastCommandAt: 0,
@@ -346,10 +348,11 @@ export function getProgressSignature(state) {
 }
 
 export function refreshChapterFromState(state) {
-  updateChapter(state);
+  return updateChapter(state);
 }
 
 function updateChapter(state) {
+  const previousChapter = Number(state.chapter || 1);
   const chapterOneGoals = ["unlock_archive", "set_time_0311"];
   const chapterTwoGoals = ["recover_manifest", "decode_cam2", "access_redacted_audit"];
 
@@ -367,6 +370,13 @@ function updateChapter(state) {
       state.chapter = Math.max(state.chapter, 3);
     }
   }
+
+  const chapter = Number(state.chapter || 1);
+  return {
+    previousChapter,
+    chapter,
+    chapterChanged: chapter !== previousChapter
+  };
 }
 
 export function applyProgressionFlags(state) {
@@ -406,6 +416,12 @@ export function applyProgressionFlags(state) {
   }
   if (!state.windowLayout || typeof state.windowLayout !== "object") {
     state.windowLayout = {};
+  }
+  if (!Array.isArray(state.recapHistory)) {
+    state.recapHistory = [];
+  }
+  if (!state.lastRecap || typeof state.lastRecap !== "object") {
+    state.lastRecap = null;
   }
   if (!Array.isArray(state.forensicTrail)) {
     state.forensicTrail = [];
