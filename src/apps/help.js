@@ -10,7 +10,7 @@ export function openHelp({ makeWindow, state }) {
       ? `<ul>${quickStartItems.map((item) => `<li>${item.hint}${item.command ? ` <code>${item.command}</code>` : ""}</li>`).join("")}</ul>`
       : `<p class='notice'>${COPY.help.noSteps}</p>`;
 
-    content.innerHTML = `<div class='app-shell'><div class='system-label'>operations handbook</div><div class='panel-dense'><h4 style='margin:0 0 6px'>${COPY.help.title}</h4>
+    content.innerHTML = `<div class='app-shell'><div class='system-label'>operations manual</div><div class='panel-dense'><h4 style='margin:0 0 6px'>${COPY.help.title}</h4>
       <p>${COPY.help.intro}</p>
       <ul>
         <li>${COPY.help.topics[0]}</li>
