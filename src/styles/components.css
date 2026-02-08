@@ -116,26 +116,34 @@
 }
 
 .icon {
-  width: 78px;
+  width: 84px;
+  min-height: 76px;
   text-align: center;
   font-size: var(--font-size-sm);
   color: #d2dfed;
   cursor: pointer;
   background: transparent;
   border: 0;
-  padding: var(--space-0);
+  border-radius: 4px;
+  padding: 4px 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-1);
   transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease,
     transform var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
 }
 
 .icon:hover {
   color: #e5eff8;
+  background: rgba(74, 108, 140, 0.2);
 }
 
 .icon .glyph {
   width: 30px;
   height: 26px;
-  margin: 0 auto var(--space-2);
+  margin: 0;
   border: 1px solid #4a6b89;
   background: rgba(255, 255, 255, 0.04);
   display: grid;
@@ -146,7 +154,7 @@
 .start-btn {
   margin: 0;
   height: 24px;
-  min-width: 78px;
+  min-width: 92px;
   border: 1px solid #31597e;
   background: #0d2235;
   color: #d7e6f2;
@@ -638,4 +646,9 @@ textarea {
 .task[data-health="fault"] {
   border-color: #8e4b55;
   color: #f0c4ca;
+}
+
+.icon .system-label {
+  line-height: 1.2;
+  text-wrap: balance;
 }
