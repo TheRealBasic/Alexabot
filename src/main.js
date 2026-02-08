@@ -21,9 +21,10 @@ import { openChat } from "./apps/chat.js";
 import { openCalculator } from "./apps/calculator.js";
 import { openCalendar } from "./apps/calendar.js";
 import { openSystemMonitor } from "./apps/sysmon.js";
+import { openSimulationConsole } from "./apps/simulation.js";
 import { createPresentationController } from "./presentation.js";
 import { getOnboardingChecklistItems } from "./onboarding.js";
-import { COPY } from "./ui/copy.js";
+import { COPY, formatCopy } from "./ui/copy.js";
 
 const params = new URLSearchParams(window.location.search);
 const roomId = params.get("room");
@@ -320,6 +321,23 @@ const appContext = {
   completeObjective: (action) => dispatchAction(action),
   sendAction: (action) => dispatchAction(action),
   notify,
+  simulationHooks: {
+    onCriticalDivergence: ({ divergence, branchA, branchB }) => {
+      notify(formatCopy(COPY.simulation.notifications.criticalDivergence, {
+        divergence,
+        branchA,
+        branchB
+      }));
+    },
+    onRunCompleted: ({ runId, eventCount, trust, conflict }) => {
+      notify(formatCopy(COPY.simulation.notifications.runComplete, {
+        runId,
+        eventCount,
+        trust,
+        conflict
+      }));
+    }
+  },
   getDynamicFile,
   getDirectoryEntries,
   isContentVisible
@@ -419,7 +437,8 @@ const apps = [
   { id: "chat", name: COPY.apps.chat, icon: "💬", roles: ["operator", "observer"], open: () => openChat(appContext) },
   { id: "calculator", name: COPY.apps.calculator, icon: "🧮", roles: ["operator", "observer"], open: () => openCalculator(appContext) },
   { id: "calendar", name: COPY.apps.calendar, icon: "📆", roles: ["operator", "observer"], open: () => openCalendar(appContext) },
-  { id: "sysmon", name: COPY.apps.sysmon, icon: "📈", roles: ["operator", "observer"], open: () => openSystemMonitor(appContext) }
+  { id: "sysmon", name: COPY.apps.sysmon, icon: "📈", roles: ["operator", "observer"], open: () => openSystemMonitor(appContext) },
+  { id: "simulation", name: COPY.apps.simulation, icon: "🧪", roles: ["operator", "observer"], open: () => openSimulationConsole(appContext) }
 ];
 
 

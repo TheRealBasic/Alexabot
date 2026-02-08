@@ -791,3 +791,47 @@ textarea {
     animation: none;
   }
 }
+
+.timeline-row {
+  display: grid;
+  grid-template-columns: auto 140px 1fr;
+  gap: var(--space-2);
+  align-items: center;
+  border-top: 1px solid rgba(62, 95, 126, 0.35);
+  padding: var(--space-2) 0;
+  font-size: var(--font-size-sm);
+}
+
+.timeline-row:first-child {
+  border-top: 0;
+}
+
+.timeline-event {
+  font-family: var(--font-mono);
+  color: #c7d8e8;
+  text-transform: lowercase;
+}
+
+.timeline-detail {
+  color: #99b0c7;
+}
+
+.compact-diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.compact-diff-table th,
+.compact-diff-table td {
+  border: 1px solid #2f4f69;
+  padding: 4px var(--space-2);
+  text-align: left;
+}
+
+.compact-diff-table thead th {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  font-size: var(--font-size-xs);
+  color: #a7c1d8;
+}
