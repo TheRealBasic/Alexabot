@@ -6,6 +6,11 @@ export const STORAGE_KEY = "eidolon_state_v1";
 export const defaultState = {
   chapter: 1,
   objectives: [
+    { id: "onboarding_open_explorer", label: "Boot sequence: open Node Directory (Explorer)", chapter: 1, roles: ["operator", "observer"], phase: "onboarding" },
+    { id: "onboarding_run_help", label: "Boot sequence: run `help` in Terminal", chapter: 1, roles: ["operator", "observer"], phase: "onboarding" },
+    { id: "onboarding_read_file", label: "Boot sequence: read one file", chapter: 1, roles: ["operator", "observer"], phase: "onboarding" },
+    { id: "onboarding_progression_command", label: "Boot sequence: execute one progression command", chapter: 1, roles: ["operator"], phase: "onboarding" },
+    { id: "onboarding_confirm_objective_panel", label: "Boot sequence: confirm mission telemetry panel usage", chapter: 1, roles: ["operator", "observer"], phase: "onboarding" },
     { id: "unlock_archive", label: "Unlock archive channel", chapter: 1, roles: ["operator"] },
     { id: "set_time_0311", label: "Synchronize local clock to 03:11", chapter: 1, roles: ["operator"] },
     { id: "observer_ping_operator", label: "Observer: capture transient relay code and ping operator", chapter: 1, roles: ["observer"], coopOnly: true },
@@ -69,7 +74,8 @@ export const defaultState = {
   },
   uiHints: {
     onboardingDismissed: false,
-    onboardingDismissedChapter: 0
+    onboardingDismissedChapter: 0,
+    objectivePanelConfirmedChapters: []
   },
   windowLayout: {},
   disableChatAnimations: false,
@@ -316,6 +322,14 @@ export function applyProgressionFlags(state) {
   }
   if (!state.objectives.every((objective) => Array.isArray(objective.roles))) {
     state.objectives = [...defaultState.objectives];
+  }
+  const requiredObjectiveIds = new Set(defaultState.objectives.map((objective) => objective.id));
+  const existingObjectiveIds = new Set(state.objectives.map((objective) => objective.id));
+  for (const objectiveId of requiredObjectiveIds) {
+    if (!existingObjectiveIds.has(objectiveId)) {
+      state.objectives = [...defaultState.objectives];
+      break;
+    }
   }
   if (!Array.isArray(state.completedObjectives)) {
     state.completedObjectives = [];

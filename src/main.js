@@ -23,7 +23,7 @@ import { openCalendar } from "./apps/calendar.js";
 import { openSystemMonitor } from "./apps/sysmon.js";
 import { openSimulationConsole } from "./apps/simulation.js";
 import { createPresentationController } from "./presentation.js";
-import { getOnboardingChecklistItems } from "./onboarding.js";
+import { getOnboardingChecklistItems, hasPendingOnboardingObjectives } from "./onboarding.js";
 import { COPY, formatCopy } from "./ui/copy.js";
 import { subscribeSystemEvents } from "./systems/events.js";
 import { getServiceStatusTable, tickSystemSimulation } from "./systems/simulator.js";
@@ -165,12 +165,17 @@ function ensureUiHintsState() {
   if (!state.uiHints || typeof state.uiHints !== "object") state.uiHints = {};
   if (typeof state.uiHints.onboardingDismissed !== "boolean") state.uiHints.onboardingDismissed = false;
   if (typeof state.uiHints.onboardingDismissedChapter !== "number") state.uiHints.onboardingDismissedChapter = 0;
+  if (!Array.isArray(state.uiHints.objectivePanelConfirmedChapters)) state.uiHints.objectivePanelConfirmedChapters = [];
 }
 
 function syncOnboardingDismissalByChapter() {
   ensureUiHintsState();
   if (state.uiHints.onboardingDismissedChapter !== state.chapter) {
     state.uiHints.onboardingDismissed = false;
+  }
+  if (!hasPendingOnboardingObjectives(state, state.activeRole)) {
+    state.uiHints.onboardingDismissed = true;
+    state.uiHints.onboardingDismissedChapter = state.chapter;
   }
 }
 
@@ -293,6 +298,11 @@ const dispatchAction = (action) => {
   return { accepted: true, ...result };
 };
 
+function completeOnboardingObjective(objectiveId) {
+  if (state.completedObjectives.includes(objectiveId)) return;
+  dispatchAction({ type: "objective.complete", objectiveId });
+}
+
 const save = () => {
   evaluateBehaviorReactions({ state, fs, saveState: persist });
   rehydrateContentFromState(state);
@@ -402,7 +412,17 @@ function mountObjectivePanel() {
       ${relayNotice}
       <div class="objective-subtitle">${COPY.shell.objectives.activeObjectives}</div>
       <ul>${active.map((objective) => `<li><span class="status-badge">${(objective.roles || ["operator"]).join("/")}</span> ${objective.label}</li>`).join("") || `<li>${COPY.shell.objectives.allDone}</li>`}</ul>
+      <button type="button" class="onboarding-dismiss" data-action="confirm-panel">Confirm panel reviewed</button>
     `;
+
+    panel.querySelector('[data-action="confirm-panel"]').onclick = () => {
+      ensureUiHintsState();
+      if (!state.uiHints.objectivePanelConfirmedChapters.includes(state.chapter)) {
+        state.uiHints.objectivePanelConfirmedChapters.push(state.chapter);
+      }
+      completeOnboardingObjective("onboarding_confirm_objective_panel");
+      save();
+    };
   };
 
   render();
@@ -438,7 +458,11 @@ function mountOnboardingPanel() {
     `;
 
     panel.querySelector('[data-open="terminal"]').onclick = () => openTerminal(appContext);
-    panel.querySelector('[data-open="explorer"]').onclick = () => openExplorer(appContext);
+    panel.querySelector('[data-open="explorer"]').onclick = () => {
+      openExplorer(appContext);
+      completeOnboardingObjective("onboarding_open_explorer");
+      save();
+    };
     panel.querySelector('[data-open="help"]').onclick = () => openHelp(appContext);
     panel.querySelector('[data-action="dismiss"]').onclick = () => {
       state.uiHints.onboardingDismissed = true;
@@ -469,6 +493,9 @@ const apps = [
 
 function openApp(app) {
   app.open();
+  if (app.id === "explorer") {
+    completeOnboardingObjective("onboarding_open_explorer");
+  }
   if (!Array.isArray(state.recentApps)) state.recentApps = [];
   state.recentApps.push({ id: app.id || app.name, name: app.name, at: Date.now() });
   state.recentApps = state.recentApps.slice(-20);

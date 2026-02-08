@@ -185,6 +185,7 @@ export function openExplorer({ makeWindow, fs, getDynamicFile, getDirectoryEntri
             completeObjective({ type: "objective.complete", objectiveId: "observer_anomaly_trace" });
           }
           incrementFileView(state, rowData.full);
+          completeObjective({ type: "objective.complete", objectiveId: "onboarding_read_file" });
           appendForensicTrace(state, "explorer.open", rowData.full);
           appendTerminalEvent(state, `explorer: open ${rowData.full}`);
           saveState();
