@@ -1,9 +1,13 @@
+import { createAudioEngine } from "./audio/engine.js";
+
 export function createPresentationController({ state, desktopRoot, taskbar, overlay }) {
   let audioCtx;
   let humNode;
   let humLfo;
   let locked = false;
   let lastUiClickAt = 0;
+  const audio = createAudioEngine();
+  audio.setMasterVolume(0.62);
   const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
   const cinematicSeen = state.cinematicSeen || (state.cinematicSeen = {
@@ -23,22 +27,6 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
     } catch {
       return false;
     }
-  }
-
-  function pulseTone({ freq = 320, duration = 0.12, type = "square", gain = 0.03 } = {}) {
-    if (!ensureAudioContext()) return;
-    const safeGain = Math.min(Math.max(gain, 0.0001), 0.018);
-    const t = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const amp = audioCtx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, t);
-    amp.gain.setValueAtTime(0.0001, t);
-    amp.gain.exponentialRampToValueAtTime(safeGain, t + 0.01);
-    amp.gain.exponentialRampToValueAtTime(0.0001, t + duration);
-    osc.connect(amp).connect(audioCtx.destination);
-    osc.start(t);
-    osc.stop(t + duration + 0.02);
   }
 
   function ensureHum() {
@@ -73,7 +61,7 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
     if (now - lastUiClickAt < 75) return;
     lastUiClickAt = now;
     startAmbient();
-    pulseTone({ freq: 680, duration: 0.02, type: "triangle", gain: 0.0055 });
+    audio.playUiClick();
   }
 
   function addTimedClass(el, className, ms = 700) {
@@ -96,8 +84,7 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
 
   function cinematicBeat({ text, lockMs, flickerMs = 900, scanlineMs = 1600, warningMs = 1300, stinger = 230 }) {
     startAmbient();
-    pulseTone({ freq: stinger, duration: 0.14, type: "sawtooth", gain: 0.013 });
-    setTimeout(() => pulseTone({ freq: stinger * 1.55, duration: 0.15, type: "triangle", gain: 0.01 }), 120);
+    audio.playCinematicStinger({ baseFreq: stinger });
     if (!prefersReducedMotion) {
       addTimedClass(desktopRoot, "fx-flicker", flickerMs);
       addTimedClass(desktopRoot, "fx-scanline-shift", scanlineMs);
