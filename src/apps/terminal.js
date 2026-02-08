@@ -35,6 +35,28 @@ function canRunCommand(role, cmd) {
   return observerAllowed.has(cmd);
 }
 
+export function parseSimCommandArgs(args = []) {
+  const subcommand = args[0] || "help";
+  return {
+    subcommand,
+    scenarioId: args[1] || "",
+    label: args.slice(1).join(" ").trim(),
+    branchLabel: args[1] || "",
+    seed: (() => {
+      const seedArg = args.find((entry) => entry.startsWith("--seed="));
+      return seedArg ? Number(seedArg.split("=")[1]) : null;
+    })()
+  };
+}
+
+export function canRunSimSubcommand(role, subcommand) {
+  if (role === "operator") return true;
+  const observerOnly = new Set(["metrics", "export", "branch"]);
+  const operatorOnly = new Set(["start", "step", "fork"]);
+  if (operatorOnly.has(subcommand)) return false;
+  return observerOnly.has(subcommand) || subcommand === "help";
+}
+
 export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirectoryEntries, isContentVisible, state, saveState, completeObjective, notify }) {
   makeWindow("terminal", "Terminal", (content, win) => {
     const role = state.activeRole || "operator";
@@ -134,15 +156,14 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
 
     function handleSimulationCommand(args) {
       const sim = ensureSimulationState(state);
-      const sub = args[0] || "help";
-      const observerOnly = new Set(["metrics", "export", "branch"]);
-      const operatorOnly = new Set(["start", "step", "fork"]);
+      const parsed = parseSimCommandArgs(args);
+      const sub = parsed.subcommand;
 
-      if (role !== "operator" && operatorOnly.has(sub)) {
+      if (!canRunSimSubcommand(role, sub) && ["start", "step", "fork"].includes(sub)) {
         print("sim: operator role required for mutating commands");
         return;
       }
-      if (role !== "operator" && !observerOnly.has(sub) && sub !== "help") {
+      if (!canRunSimSubcommand(role, sub)) {
         print("sim: command not allowed for observer");
         return;
       }
@@ -153,14 +174,13 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       }
 
       if (sub === "start") {
-        const scenarioId = args[1];
+        const scenarioId = parsed.scenarioId;
         if (!scenarioId) {
           print("sim start: missing scenario id");
           printSimulationHelp();
           return;
         }
-        const seedArg = args.find((entry) => entry.startsWith("--seed="));
-        const seed = seedArg ? Number(seedArg.split("=")[1]) : Date.now();
+        const seed = parsed.seed ?? Date.now();
         const result = runScenario(state, { scenarioId, seed });
         if (!result.ok) {
           print(`sim start failed: ${result.message}`);
@@ -182,7 +202,7 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       }
 
       if (sub === "fork") {
-        const label = args.slice(1).join(" ").trim();
+        const label = parsed.label;
         if (!label) {
           print("sim fork: missing label");
           return;
@@ -197,7 +217,7 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       }
 
       if (sub === "branch") {
-        const label = args[1];
+        const label = parsed.branchLabel;
         if (!label) {
           const branches = Object.keys(sim.branches);
           print(`active branch: ${sim.selectedBranch || "none"}`);
