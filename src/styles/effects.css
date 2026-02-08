@@ -112,3 +112,61 @@
     animation: none !important;
   }
 }
+
+.cinematic-overlay.crash-sequence-active {
+  opacity: 1;
+  pointer-events: all;
+  z-index: 100;
+  background: radial-gradient(circle at center, rgba(150, 38, 38, 0.26), rgba(4, 6, 10, 0.95) 58%);
+  animation: crash-overlay-flicker 420ms steps(2, end) infinite;
+}
+
+.cinematic-overlay.crash-sequence-active::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 0px, rgba(255, 255, 255, 0.05) 1px, transparent 1px, transparent 3px);
+  opacity: 0.42;
+  mix-blend-mode: screen;
+  animation: crash-scan 900ms linear infinite;
+}
+
+.cinematic-overlay.crash-sequence-active::after {
+  content: "PANIC 0xE1D0 // CORE DUMP INTEGRITY CHECK";
+  position: absolute;
+  left: 50%;
+  bottom: 16%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  letter-spacing: 1.3px;
+  color: rgba(255, 180, 180, 0.92);
+}
+
+.cinematic-overlay.crash-sequence-active[data-phase="reboot"]::after {
+  content: "REBOOT VECTOR STABLE // RESTORING OPERATOR CONTEXT";
+  color: rgba(206, 231, 255, 0.94);
+}
+
+.cinematic-overlay.crash-sequence-active[data-phase="restoring"]::after {
+  content: "SESSION RESTORED // CONTINUITY LOCK VERIFIED";
+  color: rgba(196, 245, 218, 0.94);
+}
+
+@keyframes crash-overlay-flicker {
+  0%,
+  100% { filter: brightness(1); }
+  45% { filter: brightness(0.82) contrast(1.18); }
+  70% { filter: brightness(1.08) contrast(1.1); }
+}
+
+@keyframes crash-scan {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cinematic-overlay.crash-sequence-active,
+  .cinematic-overlay.crash-sequence-active::before {
+    animation: none !important;
+  }
+}

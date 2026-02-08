@@ -9,7 +9,8 @@ import {
   evaluateBehaviorReactions,
   evaluateHintTier,
   isManifestationActive,
-  shouldActivateManifestation
+  shouldActivateManifestation,
+  isCriticalPuzzleInputWindow
 } from '../src/progression/reactions.js';
 
 function makeState() {
@@ -86,4 +87,35 @@ test('tiered hints escalate from subtle to direct nudge', () => {
   state.guidanceMetrics.failedCommandStreak = 6;
   assert.equal(evaluateHintTier(state, 3_000), 3);
   assert.match(consumeTieredHint(state, 3_000), /direct nudge/i);
+});
+
+
+test('system crash reboot manifestation enforces probability and cooldown', () => {
+  const state = makeState();
+  state.chapter = 3;
+  state.aiParanoia = 7;
+
+  assert.equal(shouldActivateManifestation(state, 'systemCrashReboot', 500_000, { randomValue: 0.8 }), false);
+  assert.equal(shouldActivateManifestation(state, 'systemCrashReboot', 500_000, { randomValue: 0.01 }), true);
+
+  activateManifestation(state, 'systemCrashReboot', 'panic rehearsal', 500_000);
+  assert.equal(shouldActivateManifestation(state, 'systemCrashReboot', 600_000, { randomValue: 0.01 }), false);
+  assert.equal(shouldActivateManifestation(state, 'systemCrashReboot', 930_001, { randomValue: 0.01 }), true);
+});
+
+test('critical puzzle windows block crash reboot manifestation', () => {
+  const state = makeState();
+  state.chapter = 3;
+  state.aiParanoia = 7;
+
+  state.relaySignal = { code: '1234', generatedAt: 1, expiresAt: 120_000, generatedBy: 'observer', resolvedBy: null };
+  assert.equal(isCriticalPuzzleInputWindow(state, 60_000), true);
+  assert.equal(shouldActivateManifestation(state, 'systemCrashReboot', 60_000, { randomValue: 0.01 }), false);
+
+  state.relaySignal.resolvedBy = 'operator';
+  state.driftMinutes = 0;
+  state.completedObjectives = [];
+  const maintenanceWindow = new Date('2003-04-19T03:12:00.000Z').getTime();
+  assert.equal(isCriticalPuzzleInputWindow(state, maintenanceWindow), true);
+  assert.equal(shouldActivateManifestation(state, 'systemCrashReboot', maintenanceWindow, { randomValue: 0.01 }), false);
 });

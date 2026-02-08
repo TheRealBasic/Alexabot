@@ -1,4 +1,5 @@
 import { appendManifestationEvent, updateGuidanceMetrics } from "../state.js";
+import { emitSystemEvent } from "../systems/events.js";
 
 
 
@@ -60,8 +61,31 @@ const MANIFESTATION_RULES = {
     minChapter: 3,
     cooldownMs: 160_000,
     activeMs: 90_000
+  },
+  systemCrashReboot: {
+    threshold: (state) => Number(state.aiParanoia || 0) >= 5 || Number(state.aiContradictionCount || 0) >= 6,
+    minChapter: 2,
+    cooldownMs: 420_000,
+    activeMs: 14_000,
+    probability: 0.04,
+    guard: (state, now) => !isCriticalPuzzleInputWindow(state, now)
   }
 };
+
+export function isCriticalPuzzleInputWindow(state, now = Date.now()) {
+  const relay = state.relaySignal;
+  const relayActive = relay
+    && Number(relay.expiresAt || 0) >= now
+    && !relay.resolvedBy;
+  if (relayActive) return true;
+
+  const recoverOutstanding = !Array.isArray(state.completedObjectives)
+    || !state.completedObjectives.includes("recover_manifest");
+  if (!recoverOutstanding) return false;
+
+  const clock = new Date(now + Number(state.driftMinutes || 0) * 60_000);
+  return clock.getHours() === 3 && clock.getMinutes() >= 11 && clock.getMinutes() <= 13;
+}
 
 function ensureReactionState(state) {
   if (!state.reactionFlags) {
@@ -135,13 +159,18 @@ function injectSyntheticFiles(fs) {
   }
 }
 
-export function shouldActivateManifestation(state, triggerId, now = Date.now()) {
+export function shouldActivateManifestation(state, triggerId, now = Date.now(), options = {}) {
   const rule = MANIFESTATION_RULES[triggerId];
   if (!rule) return false;
   const manifest = ensureManifestationState(state);
   const chapter = Number(state.chapter || 1);
   if (chapter < rule.minChapter) return false;
   if (!rule.threshold(state)) return false;
+  if (typeof rule.guard === "function" && !rule.guard(state, now)) return false;
+  if (typeof rule.probability === "number") {
+    const roll = Number.isFinite(options.randomValue) ? Number(options.randomValue) : Math.random();
+    if (roll > rule.probability) return false;
+  }
   const lastTriggeredAt = Number(manifest.lastTriggeredAt[triggerId] || 0);
   return now - lastTriggeredAt >= rule.cooldownMs;
 }
@@ -219,6 +248,17 @@ export function evaluateBehaviorReactions({ state, fs, saveState, projectionMode
   }
   if (shouldActivateManifestation(state, "delayedNotification", now)) {
     changed = activateManifestation(state, "delayedNotification", "notification tone desynchronized", now, { projectionMode }) || changed;
+  }
+  if (shouldActivateManifestation(state, "systemCrashReboot", now)) {
+    changed = activateManifestation(state, "systemCrashReboot", "kernel panic rehearsal sequence injected", now, { projectionMode }) || changed;
+    if (!projectionMode) {
+      emitSystemEvent(state, {
+        type: "narrative.crash_reboot",
+        level: "warning",
+        service: "continuity-core",
+        message: "simulated kernel panic + reboot vignette initiated"
+      });
+    }
   }
 
   if (hintTier > previousHintTier) changed = true;

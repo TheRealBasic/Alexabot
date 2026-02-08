@@ -1,9 +1,10 @@
 import { AUDIO_MIX_DEFAULTS, createAudioEngine } from "./audio/engine.js";
 
-export function createPresentationController({ state, desktopRoot, taskbar, overlay }) {
+export function createPresentationController({ state, desktopRoot, taskbar, overlay, notify }) {
   let ambientNodes;
   let locked = false;
   let lastUiClickAt = 0;
+  let lockReleaseTimer = null;
   const audio = createAudioEngine({ mix: AUDIO_MIX_DEFAULTS });
   const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
@@ -126,13 +127,15 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
 
   function lockInput(ms = 1800, text = "SYSTEM FOCUS REALIGNMENT") {
     locked = true;
+    if (lockReleaseTimer) clearTimeout(lockReleaseTimer);
     overlay.textContent = text;
     overlay.classList.add("active");
     document.body.classList.add("input-locked");
-    setTimeout(() => {
+    lockReleaseTimer = setTimeout(() => {
       locked = false;
       overlay.classList.remove("active");
       document.body.classList.remove("input-locked");
+      lockReleaseTimer = null;
     }, ms);
   }
 
@@ -158,6 +161,36 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
     e.preventDefault();
     e.stopPropagation();
   }, true);
+
+
+  function runCrashRebootSequence(event = {}) {
+    if (overlay.classList.contains("crash-sequence-active")) return;
+    startAmbient();
+    audio.playCinematicStinger({ baseFreq: 84 });
+    lockInput(5600, "SIGNAL COLLAPSE // PANIC HANDLER ENGAGED");
+
+    overlay.classList.add("crash-sequence-active");
+    overlay.dataset.phase = "panic";
+
+    setTimeout(() => {
+      overlay.dataset.phase = "reboot";
+      audio.playCinematicStinger({ baseFreq: 124 });
+    }, 1750);
+
+    setTimeout(() => {
+      overlay.dataset.phase = "restoring";
+      audio.playCinematicStinger({ baseFreq: 182 });
+    }, 3550);
+
+    setTimeout(() => {
+      overlay.classList.remove("crash-sequence-active");
+      overlay.classList.remove("active");
+      overlay.dataset.phase = "";
+      document.body.classList.remove("input-locked");
+      locked = false;
+      notify?.(event.notification || "Continuity Event: simulated crash/reboot completed. Session state preserved.", { actor: "system" });
+    }, prefersReducedMotion ? 2600 : 5600);
+  }
 
   function handleStateTransition(prev, next) {
     if (!prev.unlocked.archive && next.unlocked.archive && !cinematicSeen.archiveUnlock) {
@@ -221,5 +254,5 @@ export function createPresentationController({ state, desktopRoot, taskbar, over
     }
   }
 
-  return { startAmbient, handleStateTransition };
+  return { startAmbient, handleStateTransition, runCrashRebootSequence };
 }

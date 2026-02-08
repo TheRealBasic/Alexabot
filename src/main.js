@@ -163,7 +163,8 @@ const presentation = createPresentationController({
   state,
   desktopRoot,
   taskbar,
-  overlay: cinematicOverlay
+  overlay: cinematicOverlay,
+  notify
 });
 
 let previousSnapshot = JSON.parse(JSON.stringify(state));
@@ -431,6 +432,13 @@ const appContext = {
 };
 
 const unsubscribeSystemEvents = subscribeSystemEvents((event) => {
+  if (event.type === "narrative.crash_reboot") {
+    presentation.runCrashRebootSequence({
+      notification: "Continuity Event Notice: in-world crash/reboot simulation completed. No session data was lost."
+    });
+    return;
+  }
+
   if (event.level === "warning" || event.level === "critical") {
     notify(`service warning: ${event.service} // ${event.message}`, { actor: "system" });
   }
