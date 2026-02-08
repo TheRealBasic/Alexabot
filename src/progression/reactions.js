@@ -1,4 +1,40 @@
-import { appendManifestationEvent } from "../state.js";
+import { appendManifestationEvent, updateGuidanceMetrics } from "../state.js";
+
+
+
+const HINT_TIER_MESSAGES = {
+  1: "subtle clue: revisit the mission telemetry panel for active objective context",
+  2: "stronger clue: focus on one unresolved objective and use help/history to verify command format",
+  3: "direct nudge: complete the highlighted objective in mission telemetry before exploring further"
+};
+
+function computeHintTier(metrics) {
+  const failed = Number(metrics.failedCommandStreak || 0);
+  const idleMs = Number(metrics.idleMs || 0);
+  const unresolvedMs = Number(metrics.unresolvedObjectiveDurationMs || 0);
+
+  if (failed >= 6 || idleMs >= 300_000 || unresolvedMs >= 420_000) return 3;
+  if (failed >= 4 || idleMs >= 180_000 || unresolvedMs >= 240_000) return 2;
+  if (failed >= 2 || idleMs >= 90_000 || unresolvedMs >= 120_000) return 1;
+  return 0;
+}
+
+export function evaluateHintTier(state, now = Date.now()) {
+  const metrics = updateGuidanceMetrics(state, now);
+  const computedTier = computeHintTier(metrics);
+  if (computedTier > Number(metrics.hintTier || 0)) {
+    metrics.hintTier = computedTier;
+  }
+  return Number(metrics.hintTier || 0);
+}
+
+export function consumeTieredHint(state, now = Date.now()) {
+  const metrics = updateGuidanceMetrics(state, now);
+  const tier = evaluateHintTier(state, now);
+  if (tier <= 0 || tier <= Number(metrics.lastHintTierPrompted || 0)) return "";
+  metrics.lastHintTierPrompted = tier;
+  return HINT_TIER_MESSAGES[tier] || "";
+}
 
 const MANIFESTATION_RULES = {
   terminalAnomaly: {
@@ -139,6 +175,8 @@ export function evaluateBehaviorReactions({ state, fs, saveState, projectionMode
   const flags = ensureReactionState(state);
   const terminal = summarizeTerminalHistory(state);
   const now = Date.now();
+  const previousHintTier = Number(state.guidanceMetrics?.hintTier || 0);
+  const hintTier = evaluateHintTier(state, now);
 
   if (flags.syntheticCorrespondence) injectSyntheticFiles(fs);
   const fileAccess = summarizeFileAccess(state);
@@ -183,6 +221,8 @@ export function evaluateBehaviorReactions({ state, fs, saveState, projectionMode
     changed = activateManifestation(state, "delayedNotification", "notification tone desynchronized", now, { projectionMode }) || changed;
   }
 
+  if (hintTier > previousHintTier) changed = true;
+
   if (changed && !projectionMode) saveState();
 }
 
@@ -200,6 +240,10 @@ export function getReactiveBootloaderLines(baseLines, state) {
 
 export function getTrayWarningText(state) {
   const flags = ensureReactionState(state);
+  const hintTier = evaluateHintTier(state);
+  if (hintTier === 3) return "SYS: NUDGE: CHECK OBJECTIVES";
+  if (hintTier === 2) return "SYS: clue intensity rising";
+  if (hintTier === 1) return "SYS: subtle clue available";
   if (flags.trayWarning) return "SYS: BEHAVIOR WATCH";
   if (state.complianceScore < -2) return "SYS: OBSERVING";
   if (isManifestationActive(state, "labelShift")) return "SYS: nominal*";

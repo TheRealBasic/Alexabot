@@ -5,7 +5,9 @@ import { fs } from '../src/content.js';
 import {
   activateManifestation,
   consumeManifestation,
+  consumeTieredHint,
   evaluateBehaviorReactions,
+  evaluateHintTier,
   isManifestationActive,
   shouldActivateManifestation
 } from '../src/progression/reactions.js';
@@ -67,4 +69,21 @@ test('projection mode manifestations are flagged simulated without persistence c
   assert.equal(persisted, 0);
   const recent = state.forensicTrail[state.forensicTrail.length - 1];
   assert.match(recent.detail, /\[simulated\]/);
+});
+
+
+test('tiered hints escalate from subtle to direct nudge', () => {
+  const state = makeState();
+  state.guidanceMetrics.failedCommandStreak = 2;
+
+  assert.equal(evaluateHintTier(state, 1_000), 1);
+  assert.match(consumeTieredHint(state, 1_000), /subtle clue/i);
+
+  state.guidanceMetrics.failedCommandStreak = 4;
+  assert.equal(evaluateHintTier(state, 2_000), 2);
+  assert.match(consumeTieredHint(state, 2_000), /stronger clue/i);
+
+  state.guidanceMetrics.failedCommandStreak = 6;
+  assert.equal(evaluateHintTier(state, 3_000), 3);
+  assert.match(consumeTieredHint(state, 3_000), /direct nudge/i);
 });
