@@ -81,6 +81,7 @@ export function createMultiplayerClient({ roomId, playerId, authToken, url, onSn
   let ws;
   let reconnectTimer;
   let closed = false;
+  let reconnectAttempts = 0;
   let roomVersion = null;
   let nextActionSequence = 1;
   let inFlightSequence = null;
@@ -124,19 +125,41 @@ export function createMultiplayerClient({ roomId, playerId, authToken, url, onSn
 
   const notifyStatus = (status) => onStatus?.(status);
 
+  const closeStatusByCode = (code) => {
+    if (code === 4001) return "unauthorized";
+    if (code === 4429) return "rate_limited";
+    if (code === 4008) return "kicked";
+    return null;
+  };
+
+  const getReconnectDelayMs = () => {
+    const baseDelay = 500;
+    const capDelay = 12_000;
+    const expDelay = Math.min(capDelay, baseDelay * (2 ** reconnectAttempts));
+    const jitter = Math.floor(Math.random() * 450);
+    return expDelay + jitter;
+  };
+
   const connect = () => {
     if (closed) return;
     notifyStatus("connecting");
     ws = new WebSocket(url);
 
     ws.onopen = () => {
+      reconnectAttempts = 0;
       notifyStatus("connected");
       ws.send(JSON.stringify({ type: "join", roomId, playerId, token: authToken }));
       ws.send(JSON.stringify({ type: "snapshot.request", roomId, playerId }));
     };
 
     ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
+      let message;
+      try {
+        message = JSON.parse(event.data);
+      } catch {
+        notifyStatus("malformed_message");
+        return;
+      }
       if (message.type === "snapshot") {
         applyVersionFromMeta(message.meta);
         if (pendingResync) {
@@ -178,8 +201,9 @@ export function createMultiplayerClient({ roomId, playerId, authToken, url, onSn
     };
 
     ws.onclose = (event) => {
-      if (event?.code === 4001) {
-        notifyStatus("unauthorized");
+      const statusFromCode = closeStatusByCode(event?.code);
+      if (statusFromCode) {
+        notifyStatus(statusFromCode);
         closed = true;
         return;
       }
@@ -187,7 +211,10 @@ export function createMultiplayerClient({ roomId, playerId, authToken, url, onSn
       inFlightSequence = null;
       for (const pendingAction of pendingActions) pendingAction.sent = false;
       if (closed) return;
-      reconnectTimer = setTimeout(connect, 1200);
+      notifyStatus("reconnecting");
+      const reconnectDelay = getReconnectDelayMs();
+      reconnectAttempts += 1;
+      reconnectTimer = setTimeout(connect, reconnectDelay);
     };
 
     ws.onerror = () => notifyStatus("error");

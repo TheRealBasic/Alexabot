@@ -9,11 +9,22 @@ const JWT_SECRET = process.env.MULTIPLAYER_JWT_SECRET;
 const rooms = new Map();
 const CLOSE_CODES = {
   badRequest: 1008,
+  malformedPayload: 4400,
   unauthorized: 4001,
-  forbidden: 4003
+  forbidden: 4003,
+  kicked: 4008,
+  rateLimited: 4429,
+  roomFull: 4413
 };
 const SAVE_DEBOUNCE_MS = Number(process.env.ROOM_SAVE_DEBOUNCE_MS || 250);
 const PRELOAD_ROOMS_ON_START = process.env.PRELOAD_ROOMS_ON_START === "1";
+const HEARTBEAT_INTERVAL_MS = Number(process.env.WS_HEARTBEAT_INTERVAL_MS || 10000);
+const HEARTBEAT_TIMEOUT_MS = Number(process.env.WS_HEARTBEAT_TIMEOUT_MS || 30000);
+const SOCKET_MESSAGE_LIMIT = Number(process.env.WS_MESSAGE_RATE_LIMIT || 40);
+const SOCKET_MESSAGE_WINDOW_MS = Number(process.env.WS_MESSAGE_RATE_WINDOW_MS || 5000);
+const MAX_PAYLOAD_BYTES = Number(process.env.WS_MAX_PAYLOAD_BYTES || 16 * 1024);
+const MAX_ROOM_SIZE = Number(process.env.WS_MAX_ROOM_SIZE || 24);
+const JOIN_THROTTLE_MS = Number(process.env.WS_JOIN_THROTTLE_MS || 800);
 
 function decodeBase64Url(value) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -56,6 +67,14 @@ function verifyJoinToken(token) {
 
 function closeUnauthorized(socket, reason) {
   socket.close(CLOSE_CODES.unauthorized, reason);
+}
+
+function closeMalformed(socket, reason) {
+  socket.close(CLOSE_CODES.malformedPayload, reason);
+}
+
+function closeRateLimited(socket, reason) {
+  socket.close(CLOSE_CODES.rateLimited, reason);
 }
 
 function canPerformAction(role, action = {}) {
@@ -301,17 +320,55 @@ await cleanupExpiredRooms();
 wss.on("connection", (socket) => {
   let joinedRoomId = null;
   let joinedSession = null;
+  socket.isAlive = true;
+  socket.lastPongAt = Date.now();
+  socket.rateWindowStartedAt = Date.now();
+  socket.messageCount = 0;
+  socket.lastJoinAt = 0;
+
+  socket.on("pong", () => {
+    socket.isAlive = true;
+    socket.lastPongAt = Date.now();
+  });
 
   socket.on("message", async (raw) => {
+    const payloadBytes = typeof raw === "string" ? Buffer.byteLength(raw) : (raw?.byteLength || 0);
+    if (payloadBytes > MAX_PAYLOAD_BYTES) {
+      closeRateLimited(socket, "payload too large");
+      return;
+    }
+
+    const now = Date.now();
+    if (now - socket.rateWindowStartedAt >= SOCKET_MESSAGE_WINDOW_MS) {
+      socket.rateWindowStartedAt = now;
+      socket.messageCount = 0;
+    }
+    socket.messageCount += 1;
+    if (socket.messageCount > SOCKET_MESSAGE_LIMIT) {
+      closeRateLimited(socket, "message rate exceeded");
+      return;
+    }
+
     let message;
     try {
       message = JSON.parse(String(raw));
     } catch {
-      socket.close(CLOSE_CODES.badRequest, "invalid json");
+      closeMalformed(socket, "invalid json");
+      return;
+    }
+
+    if (!message || typeof message !== "object" || Array.isArray(message)) {
+      closeMalformed(socket, "invalid payload shape");
       return;
     }
 
     if (message.type === "join") {
+      if (now - socket.lastJoinAt < JOIN_THROTTLE_MS) {
+        closeRateLimited(socket, "join throttled");
+        return;
+      }
+      socket.lastJoinAt = now;
+
       if (typeof message.roomId !== "string" || typeof message.playerId !== "string" || typeof message.token !== "string") {
         closeUnauthorized(socket, "missing auth payload");
         return;
@@ -332,6 +389,10 @@ wss.on("connection", (socket) => {
       }
 
       const room = await getRoom(tokenClaims.roomId);
+      if (!joinedRoomId && room.sockets.size >= MAX_ROOM_SIZE) {
+        socket.close(CLOSE_CODES.roomFull, "room is full");
+        return;
+      }
       joinedRoomId = tokenClaims.roomId;
       joinedSession = Object.freeze({
         playerId: tokenClaims.playerId,
@@ -430,7 +491,7 @@ wss.on("connection", (socket) => {
     }
 
     if (!canPerformAction(joinedSession.role, rawAction)) {
-      socket.close(CLOSE_CODES.forbidden, "insufficient role permissions");
+      socket.close(CLOSE_CODES.kicked, "insufficient role permissions");
       return;
     }
 
@@ -479,5 +540,20 @@ wss.on("connection", (socket) => {
     room.sockets.delete(socket);
   });
 });
+
+const heartbeatTimer = setInterval(() => {
+  const now = Date.now();
+  for (const socket of wss.clients) {
+    if (socket.readyState !== socket.OPEN) continue;
+    if (!socket.isAlive && now - (socket.lastPongAt || 0) > HEARTBEAT_TIMEOUT_MS) {
+      socket.terminate();
+      continue;
+    }
+    socket.isAlive = false;
+    socket.ping();
+  }
+}, HEARTBEAT_INTERVAL_MS);
+
+wss.on("close", () => clearInterval(heartbeatTimer));
 
 console.log(`multiplayer websocket server listening on :${PORT}`);
