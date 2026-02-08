@@ -53,7 +53,8 @@ export const defaultState = {
   uiHints: {
     onboardingDismissed: false,
     onboardingDismissedChapter: 0
-  }
+  },
+  windowLayout: {}
 };
 
 function ensureTrustState(state) {
@@ -74,7 +75,8 @@ export function loadState() {
         playerRoles: { ...defaultState.playerRoles, ...(parsed.playerRoles || {}) },
         reactionFlags: { ...defaultState.reactionFlags, ...(parsed.reactionFlags || {}) },
         cinematicSeen: { ...defaultState.cinematicSeen, ...(parsed.cinematicSeen || {}) },
-        uiHints: { ...defaultState.uiHints, ...(parsed.uiHints || {}) }
+        uiHints: { ...defaultState.uiHints, ...(parsed.uiHints || {}) },
+        windowLayout: { ...defaultState.windowLayout, ...(parsed.windowLayout || {}) }
       }
       : { ...defaultState };
   } catch {
@@ -166,6 +168,9 @@ export function applyProgressionFlags(state) {
     state.uiHints = { ...defaultState.uiHints };
   } else {
     state.uiHints = { ...defaultState.uiHints, ...state.uiHints };
+  }
+  if (!state.windowLayout || typeof state.windowLayout !== "object") {
+    state.windowLayout = {};
   }
   ensureTrustState(state);
   updateChapter(state);

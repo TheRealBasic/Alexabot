@@ -179,6 +179,15 @@
   border-color: #3c6488;
 }
 
+.task.is-active {
+  background: #1f4565;
+  border-color: #6a8fb2;
+}
+
+.task.is-minimized {
+  opacity: 0.75;
+}
+
 .start-item {
   width: 100%;
   text-align: left;
@@ -210,6 +219,10 @@
   min-height: 200px;
 }
 
+.window[data-state="maximized"] {
+  border-color: #4f7398;
+}
+
 .titlebar {
   height: 30px;
   background: linear-gradient(180deg, #1d3a57, #132b40);
@@ -233,6 +246,51 @@
   transition: background-color var(--duration-fast) ease, border-color var(--duration-fast) ease,
     transform var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
 }
+
+.win-controls {
+  display: flex;
+  align-items: center;
+}
+
+.resize-handle {
+  position: absolute;
+  z-index: 3;
+}
+
+.resize-n,
+.resize-s {
+  left: 10px;
+  right: 10px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.resize-n { top: -3px; }
+.resize-s { bottom: -3px; }
+
+.resize-e,
+.resize-w {
+  top: 10px;
+  bottom: 10px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.resize-e { right: -3px; }
+.resize-w { left: -3px; }
+
+.resize-ne,
+.resize-nw,
+.resize-se,
+.resize-sw {
+  width: 10px;
+  height: 10px;
+}
+
+.resize-ne { top: -4px; right: -4px; cursor: nesw-resize; }
+.resize-nw { top: -4px; left: -4px; cursor: nwse-resize; }
+.resize-se { bottom: -4px; right: -4px; cursor: nwse-resize; }
+.resize-sw { bottom: -4px; left: -4px; cursor: nesw-resize; }
 
 .win-controls button:hover {
   background: #1a3851;
