@@ -8,12 +8,12 @@ export const defaultState = {
   objectives: [
     { id: "unlock_archive", label: "Unlock archive channel", chapter: 1, roles: ["operator"] },
     { id: "set_time_0311", label: "Synchronize local clock to 03:11", chapter: 1, roles: ["operator"] },
-    { id: "observer_ping_operator", label: "Observer: capture transient relay code and ping operator", chapter: 1, roles: ["observer"] },
-    { id: "operator_execute_relay", label: "Operator: execute observer relay code before timeout", chapter: 1, roles: ["operator"] },
+    { id: "observer_ping_operator", label: "Observer: capture transient relay code and ping operator", chapter: 1, roles: ["observer"], coopOnly: true },
+    { id: "operator_execute_relay", label: "Operator: execute observer relay code before timeout", chapter: 1, roles: ["operator"], coopOnly: true },
     { id: "recover_manifest", label: "Recover deleted manifest", chapter: 2, roles: ["operator"] },
     { id: "decode_cam2", label: "Decode cam2 payload", chapter: 2, roles: ["operator"] },
     { id: "access_redacted_audit", label: "Access redacted audit", chapter: 2, roles: ["observer", "operator"] },
-    { id: "observer_anomaly_trace", label: "Observer: flag anomaly signature in system logs", chapter: 2, roles: ["observer"] }
+    { id: "observer_anomaly_trace", label: "Observer: flag anomaly signature in system logs", chapter: 2, roles: ["observer"], coopOnly: true }
   ],
   completedObjectives: [],
   bootCount: 0,
@@ -270,9 +270,14 @@ export function clearSimulation(state) {
 }
 
 export function getActiveObjectives(state, role = state.activeRole) {
+  const isSolo = (state.sessionMode || "solo") === "solo";
   return state.objectives.filter((objective) => {
     const visibleToRole = !Array.isArray(objective.roles) || objective.roles.includes(role);
-    return visibleToRole && objective.chapter <= state.chapter && !state.completedObjectives.includes(objective.id);
+    const visibleInSession = !isSolo || objective.coopOnly !== true;
+    return visibleToRole
+      && visibleInSession
+      && objective.chapter <= state.chapter
+      && !state.completedObjectives.includes(objective.id);
   });
 }
 
