@@ -3,6 +3,16 @@ import { createSystemSimulationState, ensureSystemSimulationState } from "./syst
 
 export const STORAGE_KEY = "eidolon_state_v1";
 
+function cloneDefaultState() {
+  const snapshot = typeof structuredClone === "function"
+    ? structuredClone(defaultState)
+    : JSON.parse(JSON.stringify(defaultState));
+  snapshot.sessionId = Math.floor(Math.random() * 1e6);
+  snapshot.simulationState = createSimulationState();
+  snapshot.systemSimulationState = createSystemSimulationState();
+  return snapshot;
+}
+
 export const defaultState = {
   chapter: 1,
   objectives: [
@@ -216,7 +226,36 @@ export function saveState(state) {
 }
 
 export function clearState() {
-  localStorage.removeItem(STORAGE_KEY);
+  const keysToClear = new Set([STORAGE_KEY]);
+  try {
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("eidolon_")) keysToClear.add(key);
+    }
+  } catch {
+    // no-op for constrained storage environments
+  }
+
+  for (const key of keysToClear) {
+    localStorage.removeItem(key);
+  }
+
+  if (typeof sessionStorage !== "undefined") {
+    try {
+      for (let i = sessionStorage.length - 1; i >= 0; i -= 1) {
+        const key = sessionStorage.key(i);
+        if (key && key.startsWith("eidolon_")) sessionStorage.removeItem(key);
+      }
+    } catch {
+      // no-op for constrained session storage environments
+    }
+  }
+}
+
+export function resetRuntimeState(state) {
+  const nextState = cloneDefaultState();
+  for (const key of Object.keys(state || {})) delete state[key];
+  Object.assign(state, nextState);
 }
 
 export function incrementFileView(state, path) {

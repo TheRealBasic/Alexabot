@@ -1,4 +1,4 @@
-import { appendManifestationEvent, clearSimulation, clearState, incrementFileView, recordCommandTelemetry } from "../state.js";
+import { appendManifestationEvent, clearSimulation, incrementFileView, recordCommandTelemetry } from "../state.js";
 import { consumeManifestation, consumeTieredHint, isManifestationActive } from "../progression/reactions.js";
 import { forkBranch, replaySeed, runScenario, stepScenario } from "../simulation/engine.js";
 import { ensureSimulationState, serializeSimulationSnapshot } from "../simulation/serializer.js";
@@ -58,7 +58,7 @@ export function canRunSimSubcommand(role, subcommand) {
   return observerOnly.has(subcommand) || subcommand === "help";
 }
 
-export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirectoryEntries, isContentVisible, state, saveState, completeObjective, notify }) {
+export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirectoryEntries, isContentVisible, state, saveState, completeObjective, notify, resetSession }) {
   makeWindow("terminal", "Terminal", (content, win) => {
     const role = state.activeRole || "operator";
     content.classList.add("terminal");
@@ -406,10 +406,10 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
       } else if (cmd === "sim") {
         handleSimulationCommand(args);
       } else if (cmd === "whoami") print(role);
-      else if (cmd === "reset-session") {
-        clearState();
+      else if (cmd === "reset-session" || cmd === "restart-session") {
         notify?.("Session state cleared. Reloading...", { actor: actorLabel(state.playerId) });
-        setTimeout(() => window.location.reload(), 250);
+        if (typeof resetSession === "function") resetSession({ actor: actorLabel(state.playerId) });
+        else window.location.href = window.location.pathname;
       } else { print("command not found"); win?.setHealth?.("fault"); commandSucceeded = false; }
 
       if (cmdLine.includes("shutdown") || cmdLine.includes("exit")) {

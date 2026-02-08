@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyProgressionFlags, completeObjective, defaultState, getActiveObjectives, getProgressSignature, incrementFileView, recordCommandTelemetry, refreshChapterFromState, updateGuidanceMetrics } from '../src/state.js';
+import { STORAGE_KEY, applyProgressionFlags, clearState, completeObjective, defaultState, getActiveObjectives, getProgressSignature, incrementFileView, recordCommandTelemetry, resetRuntimeState, refreshChapterFromState, updateGuidanceMetrics } from '../src/state.js';
 
 function makeState() {
   return JSON.parse(JSON.stringify(defaultState));
@@ -136,4 +136,62 @@ test('applyProgressionFlags restores recap state defaults', () => {
 
   assert.equal(state.lastRecap, null);
   assert.deepEqual(state.recapHistory, []);
+});
+
+
+test('clearState removes eidolon namespaced local/session storage keys', () => {
+  const local = new Map([
+    [STORAGE_KEY, '{"chapter":3}'],
+    ['eidolon_state_v0', 'legacy'],
+    ['eidolon_synthetic_files', 'ghost'],
+    ['other_key', 'keep']
+  ]);
+  const session = new Map([
+    ['eidolon_ui_transient', '1'],
+    ['session_other', 'keep']
+  ]);
+
+  globalThis.localStorage = {
+    get length() { return local.size; },
+    key: (i) => Array.from(local.keys())[i] ?? null,
+    getItem: (key) => local.get(key) ?? null,
+    setItem: (key, value) => local.set(key, String(value)),
+    removeItem: (key) => local.delete(key)
+  };
+
+  globalThis.sessionStorage = {
+    get length() { return session.size; },
+    key: (i) => Array.from(session.keys())[i] ?? null,
+    getItem: (key) => session.get(key) ?? null,
+    setItem: (key, value) => session.set(key, String(value)),
+    removeItem: (key) => session.delete(key)
+  };
+
+  clearState();
+
+  assert.equal(local.has(STORAGE_KEY), false);
+  assert.equal(local.has('eidolon_state_v0'), false);
+  assert.equal(local.has('eidolon_synthetic_files'), false);
+  assert.equal(local.get('other_key'), 'keep');
+  assert.equal(session.has('eidolon_ui_transient'), false);
+  assert.equal(session.get('session_other'), 'keep');
+});
+
+test('resetRuntimeState returns run to chapter 1 defaults and clears rehydration flags', () => {
+  const state = makeState();
+  state.chapter = 3;
+  state.completedObjectives = ['unlock_archive', 'set_time_0311'];
+  state.recoveredFiles = true;
+  state.reactionFlags.syntheticCorrespondence = true;
+  state.terminalHistory.push({ command: 'unlock archive', actor: 'operator', timestamp: 1 });
+  state.uiHints.onboardingDismissed = true;
+
+  resetRuntimeState(state);
+
+  assert.equal(state.chapter, 1);
+  assert.deepEqual(state.completedObjectives, []);
+  assert.equal(state.recoveredFiles, false);
+  assert.equal(state.reactionFlags.syntheticCorrespondence, false);
+  assert.deepEqual(state.terminalHistory, []);
+  assert.equal(state.uiHints.onboardingDismissed, false);
 });

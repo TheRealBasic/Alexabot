@@ -1,4 +1,4 @@
-import { applyProgressionFlags, clearState, getActiveObjectives, getProgressSignature, loadState, refreshChapterFromState, saveState } from "./state.js";
+import { applyProgressionFlags, clearState, getActiveObjectives, getProgressSignature, loadState, refreshChapterFromState, resetRuntimeState, saveState } from "./state.js";
 import { fs, files, getDirectoryEntries, getDynamicFile as getDynamicFileBase, isContentVisible, rehydrateContentFromState } from "./content.js";
 import { createWindowManager } from "./windowManager.js";
 import { applyLifecycleEvent, runBoot } from "./boot.js";
@@ -84,6 +84,16 @@ let desktopInitialized = false;
 let connectionQuality = "offline";
 let syncState = "idle";
 const bootServiceNotifications = [];
+
+
+function resetSessionAndReboot({ announce = true } = {}) {
+  clearState();
+  resetRuntimeState(state);
+  rehydrateContentFromState(state);
+  if (announce) notify("Session state cleared. Reloading...");
+  window.location.href = window.location.pathname;
+}
+
 
 function setTrayHealth(el, value = "") {
   const upper = String(value).toUpperCase();
@@ -396,6 +406,7 @@ const appContext = {
   completeObjective: (action) => dispatchAction(action),
   sendAction: (action) => dispatchAction(action),
   notify,
+  resetSession: ({ actor } = {}) => resetSessionAndReboot({ announce: Boolean(actor) }),
   simulateSystemTick: () => tickSystemSimulation(state),
   simulationHooks: {
     onCriticalDivergence: ({ divergence, branchA, branchB }) => {
@@ -666,8 +677,7 @@ function initDesktop() {
     }
     const ok = window.confirm(COPY.notifications.resetConfirm);
     if (!ok) return;
-    clearState();
-    window.location.reload();
+    resetSessionAndReboot({ announce: false });
   };
   startMenuItems.appendChild(reset);
 
