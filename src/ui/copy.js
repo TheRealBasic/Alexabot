@@ -6,18 +6,18 @@ export const COPY = {
       3: "ACT III // ACCOUNTING"
     },
     onboarding: {
-      title: "Operator Briefing",
-      dismiss: "Acknowledge"
+      title: "Operator Continuity Brief",
+      dismiss: "Acknowledge Protocol"
     },
     objectives: {
       panelRole: "Assignment",
       trust: "Operational Trust",
       teammate: "Paired Operator",
-      noTeammateActivity: "No paired-operator command history.",
+      noTeammateActivity: "No paired-operator command trail recorded.",
       teammateActivityPrefix: "Last paired-operator command",
-      activeRelay: "No active relay handoff.",
-      activeObjectives: "Current Work Queue",
-      allDone: "All queued objectives complete."
+      activeRelay: "No relay handoff in progress.",
+      activeObjectives: "Active Protocol Queue",
+      allDone: "All queued protocols complete."
     },
     tray: {
       linkPrefix: "LINK",
@@ -26,25 +26,25 @@ export const COPY = {
   },
   lobby: {
     presencePrefix: "Node occupancy",
-    noNodes: "No public nodes reporting.",
-    joinError: "Enter a node ID before attaching.",
-    copyError: "Enter a node ID before creating a handoff link.",
-    copied: "Session handoff link copied.",
+    noNodes: "No public nodes currently reporting.",
+    joinError: "Provide a node ID before attachment.",
+    copyError: "Provide a node ID before generating a handoff link.",
+    copied: "Session handoff link staged to clipboard.",
     clipboardUnavailable: "Clipboard bridge unavailable. Copy from the address bar.",
     coopStatusPrefix: "link",
     joinedSuffix: "attached to node",
     left: "detached (grace interval active)",
-    freshSessionHint: "Provision a new node ID to start a clean paired session."
+    freshSessionHint: "Provision a new node ID to begin a clean paired session."
   },
   notifications: {
     startup: [
-      "Act I active: verify archive routing integrity.",
-      "Act II active: recover and decode withheld records.",
-      "Act III active: complete accounting and handoff."
+      "Act I active: verify archive routing integrity and witness alignment.",
+      "Act II active: recover withheld records and decode residual evidence.",
+      "Act III active: complete accounting, then execute handoff."
     ],
     shutdownBlocked: "Shutdown unavailable: archival cycle is locked.",
     lifecycleBlocked: "Lifecycle controls unavailable while attached to a paired node.",
-    resetConfirm: "Purge local workstation state and restart?"
+    resetConfirm: "Purge local workstation state and restart continuity cycle?"
   },
   apps: {
     explorer: "Node Directory",
@@ -76,13 +76,13 @@ export const COPY = {
     branchB: "Branch B",
     none: "none",
     metric: "Metric",
-    emptyTimeline: "No events yet. Start and step a run to populate the timeline.",
-    started: "Simulation started: {scenario} (seed {seed}).",
-    stepped: "Step applied: {eventType} on {branch}.",
-    forked: "Created branch {label}.",
-    resetDone: "Simulation state reset.",
-    exported: "Exported simulation summary to {filename}.",
-    forkPrompt: "Enter a branch label",
+    emptyTimeline: "No events recorded. Start and step a run to populate the timeline.",
+    started: "Simulation initiated: {scenario} (seed {seed}).",
+    stepped: "Step applied: {eventType} on branch {branch}.",
+    forked: "Branch created: {label}.",
+    resetDone: "Simulation state cleared.",
+    exported: "Simulation summary exported to {filename}.",
+    forkPrompt: "Enter branch label",
     forkDefault: "alternate-branch",
     controls: {
       start: "Start",
@@ -105,8 +105,8 @@ export const COPY = {
       events: "Event count"
     },
     notifications: {
-      criticalDivergence: "Critical divergence detected ({divergence}) between {branchA} and {branchB}.",
-      runComplete: "Simulation {runId} completed ({eventCount} events; trust {trust}; conflict {conflict})."
+      criticalDivergence: "Critical divergence detected ({divergence}) between branches {branchA} and {branchB}.",
+      runComplete: "Simulation {runId} complete ({eventCount} events; trust {trust}; conflict {conflict})."
     },
     errors: {
       startFailed: "Simulation start failed: {message}",
@@ -121,7 +121,7 @@ export const COPY = {
   },
   help: {
     title: "Operations Manual",
-    intro: "Some references are unavailable due to archive degradation.",
+    intro: "Some references are unavailable due to archive degradation and redaction drift.",
     topics: [
       "Command shell procedures — see <code>/system/help/shell_help.txt</code>",
       "Object recovery procedures — see <code>/system/help/recovery_help.txt</code>",
@@ -129,11 +129,11 @@ export const COPY = {
       "Unexpected operator identity assignment [article missing]"
     ],
     quickStart: "Operator Checklist",
-    noSteps: "No active checklist items for this assignment.",
+    noSteps: "No active checklist items for this protocol set.",
     chapterHints: {
-      1: "Operator note: validate continuity records before credential elevation steps.",
-      2: "Operator note: use maintenance-window behavior when recovering deleted objects.",
-      3: "Operator note: reconcile system logs with recovered correspondence for final accounting."
+      1: "Operator note: validate continuity records before credential elevation.",
+      2: "Operator note: use maintenance-window behavior during deleted-object recovery.",
+      3: "Operator note: reconcile system logs with recovered correspondence before final accounting."
     },
     chapterRecaps: {
       1: "Act I: Identity drift is underway. Confirm continuity records and establish what parts of the archive can be trusted.",
@@ -145,14 +145,14 @@ export const COPY = {
     title: "Realtime Clock Offset",
     apply: "Apply Offset",
     syncMaintenance: "Sync RTC to 03:11",
-    warning: "Caution: altering clock state may affect archival integrity checks.",
-    maintenanceSuccess: "Clock synchronized to maintenance window marker.",
+    warning: "Caution: altering clock state may affect archival integrity and continuity checks.",
+    maintenanceSuccess: "Clock synchronized to maintenance-window marker.",
     synced: "Clock synchronized to {time}.",
     invalid: "ERR-TIME-400: invalid time payload.",
     notify: "RTC offset updated.",
     animationTitle: "Accessibility",
     animationToggle: "Disable chat animation effects (instant assistant text)",
-    animationHelp: "Applies to staged text reveal and glitch flicker in The Wakeful Thread."
+    animationHelp: "Applies to staged text reveal and glitch flicker behavior in The Wakeful Thread."
   }
 };
 
