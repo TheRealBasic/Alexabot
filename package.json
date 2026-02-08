@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "python3 -m http.server 4173",
     "test": "node --test",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=79 --test-coverage-functions=87 --test-coverage-branches=70",
     "lint": "eslint src/ server/ tests/",
     "predev:multiplayer": "npm install --no-audit --no-fund",
     "dev:multiplayer": "node server/multiplayer-server.js",

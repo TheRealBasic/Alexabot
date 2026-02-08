@@ -35,16 +35,24 @@ jobs:
       - name: Run formatting check
         run: npm run format:check
 
-      - name: Run tests
+      - name: Run tests with coverage
         shell: bash
         run: |
           set -o pipefail
-          npm test 2>&1 | tee test-output.log
+          npm run test:coverage 2>&1 | tee test-output.log
 
-      - name: Upload test log
+      - name: Extract coverage summary
+        if: always()
+        shell: bash
+        run: |
+          awk '/^# start of coverage report/{flag=1} flag {print} /^# end of coverage report/{flag=0}' test-output.log > coverage-summary.txt
+
+      - name: Upload test and coverage summary log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-log-node-${{ matrix.node-version }}
-          path: test-output.log
+          name: test-and-coverage-log-node-${{ matrix.node-version }}
+          path: |
+            test-output.log
+            coverage-summary.txt
           if-no-files-found: error
