@@ -109,6 +109,11 @@ To run the in-game chat as a live AI copilot with full session context:
    ```bash
    export OPENAI_API_KEY=your_key_here
    ```
+   PowerShell equivalent:
+   ```powershell
+   $env:OPENAI_API_KEY = "your_key_here"
+   $env:WAKEFUL_AI_MODEL = "gpt-4o-mini"
+   ```
 3. Start the Wakeful AI service:
    ```bash
    npm run dev:wakeful-ai
@@ -119,7 +124,52 @@ Defaults:
 
 - Endpoint: `http://localhost:8790/ai/wakeful-thread/respond`
 - Override endpoint from URL with `?ai=http://host:port/ai/wakeful-thread/respond`
-- Override model with `WAKEFUL_AI_MODEL` (default `gpt-4.1`)
+- Override model with `WAKEFUL_AI_MODEL` (or `OPENAI_MODEL`; default `gpt-4.1`)
+
+Quick API smoke test:
+
+```bash
+curl -sS -X POST http://localhost:8790/ai/wakeful-thread/respond \
+  -H "content-type: application/json" \
+  -d '{"player":{"id":"me","role":"operator"},"progress":{"chapter":1},"recent":{},"prompt":"hello"}'
+```
+
+PowerShell smoke test:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://localhost:8790/ai/wakeful-thread/respond" `
+  -ContentType "application/json" `
+  -Body '{"player":{"id":"me","role":"operator"},"progress":{"chapter":1},"recent":{},"prompt":"hello"}'
+```
+
+If PowerShell reports a `500` error, fetch and print the response body to see the exact backend detail:
+
+```powershell
+try {
+  Invoke-RestMethod -Method Post -Uri "http://localhost:8790/ai/wakeful-thread/respond" `
+    -ContentType "application/json" `
+    -Body '{"player":{"id":"me","role":"operator"},"progress":{"chapter":1},"recent":{},"prompt":"hello"}'
+} catch {
+  $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+  $reader.ReadToEnd()
+}
+```
+
+Common `500` detail values:
+
+- `OPENAI_API_KEY missing` → key not set in the same shell session that launched `npm run dev:wakeful-ai`.
+- `openai 401 ...` → invalid key or wrong OpenAI project/org permissions.
+- `openai 404 ...` or model-not-found style message → set `WAKEFUL_AI_MODEL=gpt-4o-mini` and restart the wakeful AI service.
+- `model: undefined` in backend detail → clear bad env values and set either `WAKEFUL_AI_MODEL` or `OPENAI_MODEL`, then fully restart the wakeful AI process.
+
+PowerShell reset example:
+
+```powershell
+Remove-Item Env:WAKEFUL_AI_MODEL -ErrorAction SilentlyContinue
+Remove-Item Env:OPENAI_MODEL -ErrorAction SilentlyContinue
+$env:WAKEFUL_AI_MODEL = "gpt-4o-mini"
+npm run dev:wakeful-ai
+```
 
 The assistant receives chapter, objectives, recent terminal commands, forensic trail, and role data so it can provide progression-aware guidance in-character.
 
