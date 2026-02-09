@@ -2,7 +2,14 @@ import http from "node:http";
 
 const PORT = Number(process.env.WAKEFUL_AI_PORT || 8790);
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
-const OPENAI_MODEL = process.env.WAKEFUL_AI_MODEL || "gpt-4.1";
+
+function resolveOpenAIModel() {
+  const raw = process.env.WAKEFUL_AI_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-4.1";
+  const value = String(raw).trim();
+  return value && value !== "undefined" && value !== "null" ? value : "gpt-4o-mini";
+}
+
+const OPENAI_MODEL = resolveOpenAIModel();
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 
 function sendJson(res, status, payload) {
@@ -83,6 +90,7 @@ Return strict JSON with this schema:
 
 async function callOpenAI(pack) {
   if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY missing");
+  if (!OPENAI_MODEL) throw new Error("OPENAI_MODEL missing");
 
   const response = await fetch(`${OPENAI_BASE_URL}/responses`, {
     method: "POST",
@@ -166,5 +174,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`wakeful ai server listening on :${PORT}`);
+  console.log(`wakeful ai server listening on :${PORT} (model: ${OPENAI_MODEL})`);
 });
