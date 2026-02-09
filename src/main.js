@@ -401,28 +401,64 @@ const { makeWindow } = createWindowManager({ desktopRoot, taskList, state, persi
 
 const contextMenuController = (() => {
   let currentContext = "desktop";
+  let previousFocusedElement = null;
+  const VIEWPORT_PADDING = 8;
+
+  const getMenuItems = () => {
+    if (!contextMenu) return [];
+    return [...contextMenu.querySelectorAll('[role="menuitem"]:not(:disabled)')];
+  };
+
+  const focusMenuItem = (index = 0) => {
+    const items = getMenuItems();
+    if (!items.length) return;
+    const nextIndex = Math.min(Math.max(index, 0), items.length - 1);
+    items.forEach((item, itemIndex) => {
+      item.tabIndex = itemIndex === nextIndex ? 0 : -1;
+    });
+    items[nextIndex].focus();
+  };
+
+  const clampMenuPosition = (x, y) => {
+    if (!contextMenu) return { x, y };
+    const menuWidth = contextMenu.offsetWidth || 220;
+    const menuHeight = contextMenu.offsetHeight || 160;
+    const minX = VIEWPORT_PADDING;
+    const minY = VIEWPORT_PADDING;
+    const maxX = Math.max(minX, window.innerWidth - menuWidth - VIEWPORT_PADDING);
+    const maxY = Math.max(minY, window.innerHeight - menuHeight - VIEWPORT_PADDING);
+    return {
+      x: Math.min(Math.max(x, minX), maxX),
+      y: Math.min(Math.max(y, minY), maxY)
+    };
+  };
 
   const openContextMenu = (x, y, targetContext = "desktop") => {
     if (!contextMenu) return;
     currentContext = targetContext;
     populateItems(targetContext);
 
+    previousFocusedElement = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+
     contextMenu.hidden = false;
     contextMenu.classList.add("is-open");
+    contextMenu.setAttribute("role", "menu");
+    contextMenu.tabIndex = -1;
 
-    const menuWidth = contextMenu.offsetWidth || 220;
-    const menuHeight = contextMenu.offsetHeight || 160;
-    const maxX = Math.max(0, window.innerWidth - menuWidth - 8);
-    const maxY = Math.max(0, window.innerHeight - menuHeight - 8);
+    const clamped = clampMenuPosition(x, y);
+    contextMenu.style.left = `${clamped.x}px`;
+    contextMenu.style.top = `${clamped.y}px`;
 
-    contextMenu.style.left = `${Math.min(x, maxX)}px`;
-    contextMenu.style.top = `${Math.min(y, maxY)}px`;
+    focusMenuItem(0);
   };
 
   const closeContextMenu = () => {
     if (!contextMenu) return;
     contextMenu.classList.remove("is-open");
     contextMenu.hidden = true;
+    if (previousFocusedElement?.isConnected) previousFocusedElement.focus();
   };
 
   const populateItems = (targetContext = currentContext) => {
@@ -433,6 +469,8 @@ const contextMenuController = (() => {
       const item = document.createElement("button");
       item.className = "context-menu-item";
       item.type = "button";
+      item.setAttribute("role", "menuitem");
+      item.tabIndex = -1;
       item.textContent = label;
       item.disabled = disabled;
       item.onclick = () => {
@@ -457,6 +495,54 @@ const contextMenuController = (() => {
       addItem("Open Program Launcher", () => startMenu.classList.add("is-open"));
     }
   };
+
+  const handleMenuKeydown = (event) => {
+    if (!contextMenu || contextMenu.hidden) return;
+    const items = getMenuItems();
+    if (!items.length) return;
+    const activeIndex = Math.max(0, items.findIndex((item) => item === document.activeElement));
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusMenuItem((activeIndex + 1) % items.length);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusMenuItem((activeIndex - 1 + items.length) % items.length);
+      return;
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault();
+      focusMenuItem(0);
+      return;
+    }
+
+    if (event.key === "End") {
+      event.preventDefault();
+      focusMenuItem(items.length - 1);
+    }
+  };
+
+  const attachGlobalHandlers = () => {
+    document.addEventListener("pointerdown", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (!target.closest("#contextMenu")) closeContextMenu();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeContextMenu();
+    });
+
+    window.addEventListener("blur", closeContextMenu);
+    window.addEventListener("resize", closeContextMenu);
+    contextMenu?.addEventListener("keydown", handleMenuKeydown);
+  };
+
+  attachGlobalHandlers();
 
   return { openContextMenu, closeContextMenu, populateItems };
 })();
@@ -798,11 +884,6 @@ function initDesktop() {
 
   desktopRoot.addEventListener("contextmenu", handleContextMenu);
   window.addEventListener("contextmenu", handleContextMenu);
-
-  document.addEventListener("pointerdown", (event) => {
-    if (!(event.target instanceof Element)) return;
-    if (!event.target.closest("#contextMenu")) contextMenuController.closeContextMenu();
-  });
 
   setInterval(() => {
     const now = new Date(Date.now() + state.driftMinutes * 60_000);
