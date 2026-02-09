@@ -424,9 +424,59 @@ export function openTerminal({ makeWindow, fs, files, getDynamicFile, getDirecto
     if (role === "observer") print("Observer tools active: anomaly-hint, ping operator");
     print("Type 'help'.");
 
+    let historyCursor = null;
+    let draftCommand = "";
+
+    function getCommandHistory() {
+      if (!Array.isArray(state.terminalHistory)) return [];
+      return state.terminalHistory
+        .map((entry) => (typeof entry === "string" ? entry : entry?.command))
+        .filter((entry) => typeof entry === "string" && entry.trim().length > 0);
+    }
+
+    function setInputFromHistory(nextValue = "") {
+      input.value = nextValue;
+      input.setSelectionRange(nextValue.length, nextValue.length);
+    }
+
     input.onkeydown = (e) => {
+      if (e.key === "ArrowUp") {
+        const history = getCommandHistory();
+        if (!history.length) return;
+        e.preventDefault();
+        if (historyCursor === null) {
+          draftCommand = input.value;
+          historyCursor = history.length - 1;
+        } else if (historyCursor > 0) {
+          historyCursor -= 1;
+        }
+        setInputFromHistory(history[historyCursor] || "");
+        return;
+      }
+
+      if (e.key === "ArrowDown") {
+        if (historyCursor === null) return;
+        const history = getCommandHistory();
+        e.preventDefault();
+        if (!history.length) {
+          historyCursor = null;
+          setInputFromHistory(draftCommand);
+          return;
+        }
+        if (historyCursor < history.length - 1) {
+          historyCursor += 1;
+          setInputFromHistory(history[historyCursor] || "");
+        } else {
+          historyCursor = null;
+          setInputFromHistory(draftCommand);
+        }
+        return;
+      }
+
       if (e.key !== "Enter") return;
       const cmd = input.value.trim();
+      historyCursor = null;
+      draftCommand = "";
       input.value = "";
       print(`> ${cmd}`);
       handle(cmd);
