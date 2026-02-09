@@ -95,6 +95,34 @@ Then open the app in two clients/browsers and join/create the same room from the
 - Default port comes from `MULTIPLAYER_PORT` (fallback `8787`).
 - Optional JWT join validation can be enabled by setting `MULTIPLAYER_JWT_SECRET`.
 
+
+### Wakeful Thread Live AI Guide (optional)
+
+To run the in-game chat as a live AI copilot with full session context:
+
+1. Start the web app and multiplayer server (if using co-op):
+   ```bash
+   npm run dev
+   npm run dev:multiplayer
+   ```
+2. Export your model key:
+   ```bash
+   export OPENAI_API_KEY=your_key_here
+   ```
+3. Start the Wakeful AI service:
+   ```bash
+   npm run dev:wakeful-ai
+   ```
+4. Open the game and switch Chat mode from `LOCAL CORE` to `LIVE AI`.
+
+Defaults:
+
+- Endpoint: `http://localhost:8790/ai/wakeful-thread/respond`
+- Override endpoint from URL with `?ai=http://host:port/ai/wakeful-thread/respond`
+- Override model with `WAKEFUL_AI_MODEL` (default `gpt-4.1`)
+
+The assistant receives chapter, objectives, recent terminal commands, forensic trail, and role data so it can provide progression-aware guidance in-character.
+
 ### Multiplayer room persistence
 
 By default, room snapshots are saved under:
