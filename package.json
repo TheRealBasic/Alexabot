@@ -12,7 +12,9 @@
     "dev:multiplayer": "node server/multiplayer-server.js",
     "lint:fix": "eslint src/ server/ tests/ --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "dev:wakeful-ai": "node server/wakeful-ai-server.js",
+    "dev:coop-ai": "npm run dev:multiplayer & npm run dev:wakeful-ai"
   },
   "dependencies": {
     "ws": "^8.18.0"

@@ -1,4 +1,5 @@
 import { COPY } from "../ui/copy.js";
+import { requestWakefulReply } from "./wakeful-ai.js";
 
 const ASSISTANT_ENTITY_NAME = COPY.apps.chat;
 
@@ -449,9 +450,11 @@ export function openChat({ makeWindow, state, saveState }) {
     content.innerHTML = `
       <div class="app-shell chat-app">
         <div class="system-label">wakeful system entity</div>
+        <div class="notice">Mode: <strong id="chatModeLabel">${state.chatUseLiveAi ? "LIVE AI" : "LOCAL CORE"}</strong></div>
         <div class="chat-log panel-dense" id="chatLog" aria-live="polite"></div>
         <form class="chat-controls" id="chatForm">
           <input class="input-field" id="chatInput" autocomplete="off" placeholder="Report your observation, then identify the anomaly trail..." />
+          <button class="btn-secondary" type="button" id="chatModeBtn">${state.chatUseLiveAi ? "Use Local Core" : "Use Live AI"}</button>
           <button class="btn-primary" type="submit">Send</button>
         </form>
       </div>
@@ -460,12 +463,20 @@ export function openChat({ makeWindow, state, saveState }) {
     const log = content.querySelector("#chatLog");
     const form = content.querySelector("#chatForm");
     const input = content.querySelector("#chatInput");
+    const modeBtn = content.querySelector("#chatModeBtn");
+    const modeLabel = content.querySelector("#chatModeLabel");
     let transientAssistant = null;
     let animationTimers = [];
+    let activeRequest = null;
 
     const clearAnimationTimers = () => {
       for (const timer of animationTimers) clearTimeout(timer);
       animationTimers = [];
+    };
+
+    const syncModeUi = () => {
+      if (modeLabel) modeLabel.textContent = state.chatUseLiveAi ? "LIVE AI" : "LOCAL CORE";
+      if (modeBtn) modeBtn.textContent = state.chatUseLiveAi ? "Use Local Core" : "Use Live AI";
     };
 
     const render = () => {
@@ -488,15 +499,24 @@ export function openChat({ makeWindow, state, saveState }) {
       state.chatHistory = state.chatHistory.slice(-80);
     };
 
+    if (typeof state.chatUseLiveAi !== "boolean") state.chatUseLiveAi = false;
+
     if (!state.chatHistory.length) {
       pushMessage("assistant", pickBootGreeting(state));
       saveState();
     }
 
     render();
+    syncModeUi();
     win?.setHealth?.("active");
 
-    form.onsubmit = (event) => {
+    modeBtn.onclick = () => {
+      state.chatUseLiveAi = !state.chatUseLiveAi;
+      syncModeUi();
+      saveState();
+    };
+
+    form.onsubmit = async (event) => {
       event.preventDefault();
       const message = input.value.trim();
       if (!message) return;
@@ -506,7 +526,26 @@ export function openChat({ makeWindow, state, saveState }) {
       render();
       win?.setHealth?.("active");
 
-      const packet = generateAiReplyPacket(message, state);
+      let packet;
+      if (state.chatUseLiveAi) {
+        if (activeRequest) activeRequest.abort();
+        activeRequest = new AbortController();
+        transientAssistant = { role: "assistant", text: "signal handshake in progress...", mood: "fragmented", streaming: true };
+        render();
+        try {
+          packet = await requestWakefulReply({ message, state, signal: activeRequest.signal });
+        } catch {
+          packet = {
+            ...generateAiReplyPacket(message, state),
+            text: "Live wakeful thread was unreachable. I retained local continuity. " + generateAiReply(message, state)
+          };
+        } finally {
+          activeRequest = null;
+        }
+      } else {
+        packet = generateAiReplyPacket(message, state);
+      }
+
       const reduceMotion = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
       const instant = Boolean(state.disableChatAnimations || reduceMotion);
       const schedule = buildAssistantMessageSchedule(packet.text, { mood: packet.mood, instant, seed: `${Date.now()}:${message}` });
@@ -522,7 +561,7 @@ export function openChat({ makeWindow, state, saveState }) {
           };
 
           if (frame.isFinal) {
-            pushMessage("assistant", packet.text, { mood: packet.mood });
+            pushMessage("assistant", packet.text, { mood: packet.mood, mode: state.chatUseLiveAi ? "live" : "local" });
             transientAssistant = null;
             saveState();
           }
