@@ -61,6 +61,7 @@ const desktopIcons = document.getElementById("desktopIcons");
 const startBtn = document.getElementById("startBtn");
 const startMenu = document.getElementById("startMenu");
 const startMenuItems = document.getElementById("startMenuItems");
+const contextMenu = document.getElementById("contextMenu");
 const trayClock = document.getElementById("trayClock");
 const trayState = document.getElementById("trayState");
 const trayConnection = document.getElementById("trayConnection");
@@ -398,6 +399,68 @@ rehydrateContentFromState(state);
 
 const { makeWindow } = createWindowManager({ desktopRoot, taskList, state, persistState: persist });
 
+const contextMenuController = (() => {
+  let currentContext = "desktop";
+
+  const openContextMenu = (x, y, targetContext = "desktop") => {
+    if (!contextMenu) return;
+    currentContext = targetContext;
+    populateItems(targetContext);
+
+    contextMenu.hidden = false;
+    contextMenu.classList.add("is-open");
+
+    const menuWidth = contextMenu.offsetWidth || 220;
+    const menuHeight = contextMenu.offsetHeight || 160;
+    const maxX = Math.max(0, window.innerWidth - menuWidth - 8);
+    const maxY = Math.max(0, window.innerHeight - menuHeight - 8);
+
+    contextMenu.style.left = `${Math.min(x, maxX)}px`;
+    contextMenu.style.top = `${Math.min(y, maxY)}px`;
+  };
+
+  const closeContextMenu = () => {
+    if (!contextMenu) return;
+    contextMenu.classList.remove("is-open");
+    contextMenu.hidden = true;
+  };
+
+  const populateItems = (targetContext = currentContext) => {
+    if (!contextMenu) return;
+    contextMenu.textContent = "";
+
+    const addItem = (label, onSelect, { disabled = false } = {}) => {
+      const item = document.createElement("button");
+      item.className = "context-menu-item";
+      item.type = "button";
+      item.textContent = label;
+      item.disabled = disabled;
+      item.onclick = () => {
+        closeContextMenu();
+        onSelect?.();
+      };
+      contextMenu.appendChild(item);
+    };
+
+    if (targetContext === "desktop") {
+      const visibleApps = apps.filter((app) => !Array.isArray(app.roles) || app.roles.includes(state.activeRole));
+      const recent = Array.isArray(state.recentApps) ? state.recentApps.at(-1) : null;
+      if (recent) {
+        const app = visibleApps.find((entry) => entry.id === recent.id);
+        addItem(`Reopen ${app?.name || recent.name}`, () => {
+          if (app) openApp(app);
+        }, { disabled: !app });
+      }
+      visibleApps.slice(0, 6).forEach((app) => {
+        addItem(`Open ${app.name}`, () => openApp(app));
+      });
+      addItem("Open Program Launcher", () => startMenu.classList.add("is-open"));
+    }
+  };
+
+  return { openContextMenu, closeContextMenu, populateItems };
+})();
+
 const appContext = {
   makeWindow,
   fs,
@@ -712,14 +775,34 @@ function initDesktop() {
   };
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") startMenu.classList.remove("is-open");
+    if (e.key === "Escape") {
+      startMenu.classList.remove("is-open");
+      contextMenuController.closeContextMenu();
+    }
   });
 
   desktopRoot.onclick = (e) => {
     const target = e.target;
     if (!(target instanceof Element)) return;
     if (!target.closest("#startMenu") && !target.closest("#startBtn")) startMenu.classList.remove("is-open");
+    if (!target.closest("#contextMenu")) contextMenuController.closeContextMenu();
   };
+
+  const handleContextMenu = (event) => {
+    if (!(event.target instanceof Element)) return;
+    if (!event.target.closest("#desktopRoot")) return;
+    event.preventDefault();
+    startMenu.classList.remove("is-open");
+    contextMenuController.openContextMenu(event.clientX, event.clientY, "desktop");
+  };
+
+  desktopRoot.addEventListener("contextmenu", handleContextMenu);
+  window.addEventListener("contextmenu", handleContextMenu);
+
+  document.addEventListener("pointerdown", (event) => {
+    if (!(event.target instanceof Element)) return;
+    if (!event.target.closest("#contextMenu")) contextMenuController.closeContextMenu();
+  });
 
   setInterval(() => {
     const now = new Date(Date.now() + state.driftMinutes * 60_000);

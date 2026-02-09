@@ -325,3 +325,39 @@ body {
 .simulation-status .kv-diagnostics {
   margin-top: 0;
 }
+
+.context-menu {
+  position: fixed;
+  min-width: 220px;
+  max-width: 280px;
+  border: 1px solid #3b5f7d;
+  background: #08131e;
+  box-shadow: var(--elevation-1);
+  z-index: 60;
+  padding: var(--space-2);
+  display: grid;
+  gap: var(--space-1);
+}
+
+.context-menu-item {
+  width: 100%;
+  border: 1px solid #27455f;
+  background: rgba(5, 15, 23, 0.9);
+  color: #c9d7e7;
+  text-align: left;
+  padding: 6px 8px;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  letter-spacing: 0.3px;
+}
+
+.context-menu-item:hover:enabled,
+.context-menu-item:focus-visible:enabled {
+  border-color: #4f7595;
+  background: rgba(12, 32, 50, 0.95);
+  outline: none;
+}
+
+.context-menu-item:disabled {
+  opacity: 0.45;
+}
