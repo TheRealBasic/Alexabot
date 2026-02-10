@@ -72,6 +72,41 @@ function sanitizePack(pack = {}) {
   };
 }
 
+
+function parseModelReply(raw) {
+  if (!raw) return null;
+  if (typeof raw === "object") return raw;
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  return JSON.parse(trimmed);
+}
+
+function extractModelReply(data = {}) {
+  const parsed = parseModelReply(data?.output_parsed);
+  if (parsed) return parsed;
+
+  const outputTextParsed = parseModelReply(data?.output_text);
+  if (outputTextParsed) return outputTextParsed;
+
+  const outputs = Array.isArray(data?.output) ? data.output : [];
+  for (const item of outputs) {
+    const content = Array.isArray(item?.content) ? item.content : [];
+    for (const chunk of content) {
+      if (chunk?.type === "output_json") {
+        const jsonParsed = parseModelReply(chunk?.json);
+        if (jsonParsed) return jsonParsed;
+      }
+      if (chunk?.type === "output_text") {
+        const textParsed = parseModelReply(chunk?.text);
+        if (textParsed) return textParsed;
+      }
+    }
+  }
+
+  return null;
+}
+
 function createSystemPrompt(pack) {
   return `You are WAKEFUL THREAD, a corrupted but helpful in-universe AI guide for EIDOLON OS.
 
@@ -137,9 +172,12 @@ async function callOpenAI(pack) {
     throw new Error(`openai ${response.status} ${body.slice(0, 180)}`);
   }
   const data = await response.json();
-  const raw = data?.output_text;
-  if (!raw) throw new Error("empty model output");
-  return JSON.parse(raw);
+  const parsed = extractModelReply(data);
+  if (!parsed) {
+    const status = data?.status ? ` status=${data.status}` : "";
+    throw new Error(`empty model output${status}`);
+  }
+  return parsed;
 }
 
 const server = http.createServer(async (req, res) => {
